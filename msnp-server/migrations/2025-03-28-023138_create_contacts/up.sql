@@ -1,0 +1,9 @@
+CREATE TABLE contacts (
+  id INTEGER AUTO_INCREMENT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  contact_id INTEGER NOT NULL REFERENCES users(id),
+  display_name TEXT NOT NULL,
+  in_forward_list BOOLEAN NOT NULL DEFAULT FALSE,
+  in_allow_list BOOLEAN NOT NULL DEFAULT TRUE,
+  in_block_list BOOLEAN NOT NULL DEFAULT FALSE
+);
