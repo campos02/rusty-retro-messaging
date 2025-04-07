@@ -56,10 +56,4 @@ diesel::joinable!(group_members -> groups (group_id));
 diesel::joinable!(groups -> users (user_id));
 diesel::joinable!(tokens -> users (user_id));
 
-diesel::allow_tables_to_appear_in_same_query!(
-    contacts,
-    group_members,
-    groups,
-    tokens,
-    users,
-);
+diesel::allow_tables_to_appear_in_same_query!(contacts, group_members, groups, tokens, users,);

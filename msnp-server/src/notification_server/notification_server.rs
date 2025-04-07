@@ -1,18 +1,21 @@
 use crate::{
     Message,
-    commands::{
+    models::transient::authenticated_user::AuthenticatedUser,
+    notification_server::commands::{
         adc::Adc, adg::Adg, blp::Blp, broadcasted_command::BroadcastedCommand, chg::Chg,
         command::Command, cvr::Cvr, fln::Fln, gcf::Gcf, gtc::Gtc, iln::Iln, nln::Nln, prp::Prp,
         reg::Reg, rem::Rem, rmg::Rmg, sbp::Sbp, syn::Syn, ubx::Ubx, url::Url, usr::Usr, uux::Uux,
-        ver::Ver,
+        ver::Ver, xfr::Xfr,
     },
-    models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
 };
+use argon2::password_hash::rand_core::{OsRng, RngCore};
 use core::str;
 use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
+use std::sync::{Arc, Mutex};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, tcp::WriteHalf},
@@ -23,6 +26,7 @@ pub struct NotificationServer {
     pool: Pool<ConnectionManager<MysqlConnection>>,
     pub broadcast_tx: broadcast::Sender<Message>,
     broadcast_rx: broadcast::Receiver<Message>,
+    contact_tx: Option<broadcast::Sender<Message>>,
     contact_rx: Option<broadcast::Receiver<Message>>,
     pub authenticated_user: Option<AuthenticatedUser>,
     protocol_version: Option<String>,
@@ -37,6 +41,7 @@ impl NotificationServer {
             pool,
             broadcast_tx: broadcast_tx.clone(),
             broadcast_rx: broadcast_tx.subscribe(),
+            contact_tx: None,
             contact_rx: None,
             authenticated_user: None,
             protocol_version: None,
@@ -189,6 +194,7 @@ impl NotificationServer {
                                     })
                                     .unwrap();
 
+                                self.contact_tx = Some(tx.clone());
                                 self.contact_rx = Some(tx.subscribe());
                             }
                         }
@@ -278,7 +284,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: nln_command,
+                                        message: nln_command,
                                         disconnecting: false,
                                     };
 
@@ -296,7 +302,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: fln_command,
+                                        message: fln_command,
                                         disconnecting: false,
                                     };
 
@@ -312,7 +318,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: message.clone(),
+                                        message: message.clone(),
                                         disconnecting: false,
                                     };
 
@@ -375,7 +381,7 @@ impl NotificationServer {
 
                         let thread_message = Message::ToContact {
                             sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                            messages: ubx_command,
+                            message: ubx_command,
                             disconnecting: false,
                         };
 
@@ -446,7 +452,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: reply
+                                        message: reply
                                             .replace("FL", "RL")
                                             .replace(args[1], "0")
                                             .replace(&(" ".to_string() + args[5]), ""),
@@ -470,7 +476,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: fln_command,
+                                        message: fln_command,
                                         disconnecting: false,
                                     };
 
@@ -513,7 +519,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: reply
+                                        message: reply
                                             .replace("FL", "RL")
                                             .replace(args[1], "0")
                                             .replace(args[3], "1")
@@ -542,7 +548,7 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        messages: nln_command,
+                                        message: nln_command,
                                         disconnecting: false,
                                     };
 
@@ -664,6 +670,39 @@ impl NotificationServer {
                     }
                 }
 
+                "XFR" => {
+                    let responses = Xfr
+                        .handle_with_authenticated_user(
+                            &message,
+                            self.authenticated_user.as_mut().unwrap(),
+                        )
+                        .unwrap();
+
+                    for reply in responses {
+                        let (tx, _) = broadcast::channel::<Message>(16);
+                        let args: Vec<&str> = reply.trim().split(' ').collect();
+                        let session_id = format!("{:08}", OsRng.next_u32());
+                        let cki_string = args[5].to_string();
+
+                        let session = Session {
+                            session_id,
+                            cki_string: cki_string.clone(),
+                            session_tx: tx,
+                            principals: Arc::new(Mutex::new(Vec::new())),
+                        };
+
+                        self.broadcast_tx
+                            .send(Message::SetSession {
+                                key: cki_string,
+                                value: session,
+                            })
+                            .unwrap();
+
+                        println!("S: {reply}");
+                        wr.write_all(reply.as_bytes()).await.unwrap();
+                    }
+                }
+
                 "PNG" => {
                     let reply = "QNG 50\r\n";
                     wr.write_all(reply.as_bytes()).await.unwrap();
@@ -688,215 +727,213 @@ impl NotificationServer {
     ) -> Result<(), &'static str> {
         let Message::ToContact {
             sender,
-            messages,
+            message,
             disconnecting,
         } = message
         else {
             return Err("Message type must be ToContact");
         };
 
-        let mut messages: Vec<String> = messages.lines().map(|line| line.to_string()).collect();
+        println!("Thread {}: {message}", sender);
+        let command: Vec<&str> = message.trim().split(' ').collect();
+        match command[0] {
+            "ILN" => {
+                let presence = command[2];
+                let contact = command[3];
 
-        // Hack to concat payloads and payload commands
-        for i in 0..messages.len() - 1 {
-            let args: Vec<&str> = messages[i].trim().split(' ').collect();
-
-            match args[0] {
-                "UBX" => {
-                    let length: usize = args[2].parse().unwrap();
-                    let length = messages[i].len() + length;
-
-                    messages[i] = messages[i].clone() + "\r\n" + messages[i + 1].as_str();
-                    let next = messages[i].split_off(length + "\r\n".len());
-
-                    if next != "" {
-                        messages[i + 1] = next;
-                    } else {
-                        messages.remove(i + 1);
-                    }
+                if let Some(contact) = self
+                    .authenticated_user
+                    .as_mut()
+                    .unwrap()
+                    .contacts
+                    .get_mut(contact)
+                {
+                    contact.presence = Some(presence.to_string());
                 }
-                _ => (),
+
+                wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
             }
-        }
 
-        let messages: Vec<String> = messages
-            .iter()
-            .map(|msg| msg.to_string() + "\r\n")
-            .collect();
-
-        for message in messages {
-            println!("Thread {}: {message}", sender);
-            let command: Vec<&str> = message.trim().split(' ').collect();
-            match command[0] {
-                "ILN" => {
-                    let presence = command[2];
-                    let contact = command[3];
-
-                    if let Some(contact) = self
-                        .authenticated_user
-                        .as_mut()
-                        .unwrap()
-                        .contacts
-                        .get_mut(contact)
-                    {
-                        contact.presence = Some(presence.to_string());
-                    }
-
-                    wr.write_all(message.as_bytes()).await.unwrap();
-                    println!("S: {message}");
+            "NLN" => {
+                if command.len() < 2 {
+                    return Ok(());
                 }
 
-                "NLN" => {
-                    let presence = command[1];
-                    let contact = command[2];
+                let presence = command[1];
+                let contact = command[2];
 
-                    if let Some(contact) = self
-                        .authenticated_user
-                        .as_mut()
-                        .unwrap()
-                        .contacts
-                        .get_mut(contact)
-                    {
-                        contact.presence = Some(presence.to_string());
-                    }
-
-                    wr.write_all(message.as_bytes()).await.unwrap();
-                    println!("S: {message}");
+                if let Some(contact) = self
+                    .authenticated_user
+                    .as_mut()
+                    .unwrap()
+                    .contacts
+                    .get_mut(contact)
+                {
+                    contact.presence = Some(presence.to_string());
                 }
 
-                "FLN" => {
-                    let contact = command[1].trim();
+                wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
+            }
 
-                    if let Some(contact) = self
-                        .authenticated_user
-                        .as_mut()
-                        .unwrap()
-                        .contacts
-                        .get_mut(contact)
-                    {
-                        contact.presence = None;
-                        if disconnecting {
-                            contact.contact_tx = None;
-                        }
+            "FLN" => {
+                let contact = command[1].trim();
+
+                if let Some(contact) = self
+                    .authenticated_user
+                    .as_mut()
+                    .unwrap()
+                    .contacts
+                    .get_mut(contact)
+                {
+                    contact.presence = None;
+                    if disconnecting {
+                        contact.contact_tx = None;
                     }
-
-                    wr.write_all(message.as_bytes()).await.unwrap();
-                    println!("S: {message}");
                 }
 
-                "UBX" => {
-                    wr.write_all(message.as_bytes()).await.unwrap();
-                    println!("S: {message}");
-                }
+                wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
+            }
 
-                "CHG" => {
-                    // A user has logged in
-                    if let Some(contact) = self
-                        .authenticated_user
-                        .clone()
-                        .unwrap()
-                        .contacts
-                        .get(&sender)
+            "UBX" => {
+                wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
+            }
+
+            "CHG" => {
+                // A user has logged in
+                if let Some(contact) = self
+                    .authenticated_user
+                    .clone()
+                    .unwrap()
+                    .contacts
+                    .get(&sender)
+                {
+                    if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                        && !contact.in_allow_list
                     {
-                        if self.authenticated_user.as_ref().unwrap().blp == "BL"
-                            && !contact.in_allow_list
-                        {
-                            continue;
-                        }
-
-                        if contact.in_block_list {
-                            continue;
-                        }
-
-                        if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence
-                        {
-                            if presence == "HDN" {
-                                continue;
-                            }
-                        }
+                        return Ok(());
                     }
 
-                    let iln_command =
-                        Iln::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                    if contact.in_block_list {
+                        return Ok(());
+                    }
 
+                    if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
+                        if presence == "HDN" {
+                            return Ok(());
+                        }
+                    }
+                }
+
+                let iln_command = Iln::convert(self.authenticated_user.as_ref().unwrap(), &message);
+
+                let thread_message = Message::ToContact {
+                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    message: iln_command,
+                    disconnecting: false,
+                };
+
+                self.send_to_contact_thread(&sender, thread_message).await;
+
+                let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
+
+                let thread_message = Message::ToContact {
+                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    message: ubx_command,
+                    disconnecting: false,
+                };
+
+                self.send_to_contact_thread(&sender, thread_message).await;
+            }
+
+            "ADC" => {
+                if let Some(contact) = self
+                    .authenticated_user
+                    .clone()
+                    .unwrap()
+                    .contacts
+                    .get(&sender)
+                {
+                    if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                        && !contact.in_allow_list
+                    {
+                        return Ok(());
+                    }
+
+                    if contact.in_block_list {
+                        return Ok(());
+                    }
+
+                    if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
+                        if presence == "HDN" {
+                            return Ok(());
+                        }
+                    }
+                }
+
+                let nln_command = Nln::convert(self.authenticated_user.as_ref().unwrap(), &message);
+
+                let thread_message = Message::ToContact {
+                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    message: nln_command,
+                    disconnecting: false,
+                };
+
+                self.send_to_contact_thread(&sender, thread_message).await;
+
+                let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
+
+                let thread_message = Message::ToContact {
+                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    message: ubx_command,
+                    disconnecting: false,
+                };
+
+                self.send_to_contact_thread(&sender, thread_message).await;
+                wr.write_all(message.as_bytes()).await.unwrap();
+            }
+
+            "REM" => {
+                wr.write_all(message.as_bytes()).await.unwrap();
+            }
+
+            "RNG" => {
+                if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        messages: iln_command,
+                        message: presence.clone(),
                         disconnecting: false,
                     };
 
-                    self.send_to_contact_thread(&sender, thread_message).await;
-
-                    let ubx_command =
-                        Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
-
-                    let thread_message = Message::ToContact {
-                        sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        messages: ubx_command,
-                        disconnecting: false,
-                    };
-
-                    self.send_to_contact_thread(&sender, thread_message).await;
-                }
-
-                "ADC" => {
-                    // A user has added this user
-                    if let Some(contact) = self
-                        .authenticated_user
-                        .clone()
+                    self.contact_tx
+                        .as_ref()
                         .unwrap()
-                        .contacts
-                        .get(&sender)
-                    {
-                        if self.authenticated_user.as_ref().unwrap().blp == "BL"
-                            && !contact.in_allow_list
-                        {
-                            continue;
-                        }
+                        .send(thread_message)
+                        .unwrap();
 
-                        if contact.in_block_list {
-                            continue;
-                        }
-
-                        if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence
-                        {
-                            if presence == "HDN" {
-                                continue;
-                            }
-                        }
+                    if presence != "HDN" {
+                        wr.write_all(message.as_bytes()).await.unwrap();
                     }
-
-                    let nln_command =
-                        Nln::convert(self.authenticated_user.as_ref().unwrap(), &message);
-
+                } else {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        messages: nln_command,
+                        message: "None".to_string(),
                         disconnecting: false,
                     };
 
-                    self.send_to_contact_thread(&sender, thread_message).await;
-
-                    let ubx_command =
-                        Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
-
-                    let thread_message = Message::ToContact {
-                        sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        messages: ubx_command,
-                        disconnecting: false,
-                    };
-
-                    self.send_to_contact_thread(&sender, thread_message).await;
-                    wr.write_all(message.as_bytes()).await.unwrap();
+                    self.contact_tx
+                        .as_ref()
+                        .unwrap()
+                        .send(thread_message)
+                        .unwrap();
                 }
+            }
+            _ => (),
+        };
 
-                "REM" => {
-                    // A user has removed this user
-                    wr.write_all(message.as_bytes()).await.unwrap();
-                }
-                _ => (),
-            };
-        }
         Ok(())
     }
 
@@ -933,7 +970,7 @@ impl NotificationServer {
 
             let message = Message::ToContact {
                 sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                messages: fln_command,
+                message: fln_command,
                 disconnecting: true,
             };
 
