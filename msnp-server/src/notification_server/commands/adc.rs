@@ -59,6 +59,10 @@ impl Command for Adc {
         if contact_email.starts_with("N=") {
             let contact_email = contact_email.replace("N=", "");
 
+            if contact_email == user.email {
+                return Err(format!("201 {tr_id}\r\n"));
+            }
+
             let user_database = users
                 .filter(email.eq(&user.email))
                 .select(User::as_select())

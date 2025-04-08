@@ -362,6 +362,7 @@ impl Switchboard {
                     if command[2] == "A" || command[2] == "D" {
                         let tr_id = command[1];
                         let reply = format!("ACK {tr_id}\r\n");
+
                         wr.write_all(reply.as_bytes()).await.unwrap();
                         println!("S: {reply}");
                     }
