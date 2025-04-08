@@ -54,10 +54,13 @@ pub async fn listen() {
                         if let Err(error) = connection.listen(&mut socket).await {
                             eprintln!("{error}");
 
-                            if let Some(ref user) = connection.authenticated_user {
-                                connection.broadcast_tx.send(Message::Remove(user.email.clone())).unwrap();
-                                connection.send_disconnecting_fln_to_contacts().await;
+                            if error != "User logged in in another computer" {
+                                if let Some(ref user) = connection.authenticated_user {
+                                    connection.broadcast_tx.send(Message::Remove(user.email.clone())).unwrap();
+                                    connection.send_disconnecting_fln_to_contacts().await;
+                                }
                             }
+
                             break;
                         }
                     }
@@ -102,9 +105,7 @@ pub async fn listen() {
                     }
 
                     Message::Remove(key) => {
-                        if channels.get(&key).is_some() {
-                            channels.remove(&key).unwrap();
-                        }
+                        channels.remove(&key);
                     }
 
                     Message::GetSession(key) => {
@@ -121,9 +122,7 @@ pub async fn listen() {
                     }
 
                     Message::RemoveSession(key) => {
-                        if sessions.get(&key).is_some() {
-                            sessions.remove(&key).unwrap();
-                        }
+                        sessions.remove(&key);
                     }
                     _ => ()
                 };

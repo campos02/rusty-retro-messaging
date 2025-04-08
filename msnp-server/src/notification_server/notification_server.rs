@@ -178,18 +178,32 @@ impl NotificationServer {
                             println!("S: {reply}");
 
                             if reply.contains("OK") && !reply.contains("TWN") {
+                                let user_email = usr.get_user_email().unwrap();
+
                                 self.authenticated_user =
-                                    Some(AuthenticatedUser::new(usr.get_user_email().unwrap()));
+                                    Some(AuthenticatedUser::new(user_email.clone()));
+
+                                let thread_message = Message::ToContact {
+                                    sender: user_email.clone(),
+                                    message: "OUT OTH\r\n".to_string(),
+                                    disconnecting: false,
+                                };
+
+                                let self_tx = NotificationServer::request_contact_tx(
+                                    &user_email,
+                                    &self.broadcast_tx,
+                                    &mut self.broadcast_rx,
+                                )
+                                .await;
+
+                                if let Some(sender) = self_tx {
+                                    sender.send(thread_message).unwrap();
+                                }
 
                                 let (tx, _) = broadcast::channel::<Message>(16);
                                 self.broadcast_tx
                                     .send(Message::Set {
-                                        key: self
-                                            .authenticated_user
-                                            .as_ref()
-                                            .unwrap()
-                                            .email
-                                            .clone(),
+                                        key: user_email,
                                         value: tx.clone(),
                                     })
                                     .unwrap();
@@ -630,10 +644,6 @@ impl NotificationServer {
                         }
 
                         Err(err) => {
-                            if err == "Removing from RL" {
-                                return Err("Disconnecting client");
-                            }
-
                             wr.write_all(err.as_bytes()).await.unwrap();
                             println!("S: {err}");
                         }
@@ -931,6 +941,11 @@ impl NotificationServer {
                         .unwrap();
                 }
             }
+
+            "OUT" => {
+                wr.write_all(message.as_bytes()).await.unwrap();
+                return Err("User logged in in another computer");
+            }
             _ => (),
         };
 
@@ -938,29 +953,63 @@ impl NotificationServer {
     }
 
     async fn send_to_contact_thread(&mut self, email: &String, message: Message) {
-        let contacts = &mut self.authenticated_user.as_mut().unwrap().contacts;
-        let Some(contact) = contacts.get_mut(email) else {
+        let Some(contact) = self
+            .authenticated_user
+            .as_mut()
+            .unwrap()
+            .contacts
+            .get_mut(email)
+        else {
             return;
         };
 
         if contact.contact_tx.is_none() {
-            self.broadcast_tx.send(Message::Get(email.clone())).unwrap();
+            contact.contact_tx = NotificationServer::request_contact_tx(
+                &email,
+                &self.broadcast_tx,
+                &mut self.broadcast_rx,
+            )
+            .await;
+        }
 
-            while let Ok(message) = self.broadcast_rx.recv().await {
-                if let Message::Value { key, value } = message {
-                    if key == *email {
-                        contact.contact_tx = value;
-                        break;
-                    }
-                }
-            }
+        // Retry... fixes an issue introduced after the OUT OTH handling that made the first attempt always return None
+        // (there must some other way of fixing this)
+        if contact.contact_tx.is_none() {
+            contact.contact_tx = NotificationServer::request_contact_tx(
+                &email,
+                &self.broadcast_tx,
+                &mut self.broadcast_rx,
+            )
+            .await;
         }
 
         if contact.contact_tx.is_none() {
             return;
         }
 
-        contact.contact_tx.as_ref().unwrap().send(message).unwrap();
+        if contact.contact_tx.as_ref().unwrap().send(message).is_err() {
+            println!("Error when sending to {}", email);
+        }
+    }
+
+    async fn request_contact_tx(
+        email: &String,
+        broadcast_tx: &broadcast::Sender<Message>,
+        broadcast_rx: &mut broadcast::Receiver<Message>,
+    ) -> Option<broadcast::Sender<Message>> {
+        broadcast_tx.send(Message::Get(email.clone())).unwrap();
+
+        let mut contact_tx: Option<broadcast::Sender<Message>> = None;
+        while let Ok(message) = broadcast_rx.recv().await {
+            if let Message::Value { key, value } = message {
+                if key == email.to_string() {
+                    contact_tx = value;
+                    break;
+                }
+            }
+        }
+
+        contact_tx
     }
 
     pub(crate) async fn send_disconnecting_fln_to_contacts(&mut self) {
