@@ -977,18 +977,8 @@ impl NotificationServer {
             .await;
         }
 
-        // Retry... fixes an issue introduced after the OUT OTH handling that made the first attempt always return None
-        // (there must some other way of fixing this)
         if contact.contact_tx.is_none() {
-            contact.contact_tx = NotificationServer::request_contact_tx(
-                &email,
-                &self.broadcast_tx,
-                &mut self.broadcast_rx,
-            )
-            .await;
-        }
-
-        if contact.contact_tx.is_none() {
+            println!("No tx found for {}", email);
             return;
         }
 
@@ -1009,6 +999,9 @@ impl NotificationServer {
             if let Message::Value { key, value } = message {
                 if key == email.to_string() {
                     contact_tx = value;
+                    if !broadcast_rx.is_empty() {
+                        continue;
+                    }
                     break;
                 }
             }

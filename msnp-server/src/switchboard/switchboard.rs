@@ -157,6 +157,9 @@ impl Switchboard {
                             if let Message::Session { key, value } = message {
                                 if key == cki_string {
                                     self.session = value;
+                                    if !self.broadcast_rx.is_empty() {
+                                        continue;
+                                    }
                                     break;
                                 }
                             }
@@ -213,6 +216,9 @@ impl Switchboard {
                             if let Message::Session { key, value } = message {
                                 if key == cki_string {
                                     self.session = value;
+                                    if !self.broadcast_rx.is_empty() {
+                                        continue;
+                                    }
                                     break;
                                 }
                             }
@@ -452,6 +458,9 @@ impl Switchboard {
             if let Message::Value { key, value } = message {
                 if key == *email {
                     contact_tx = value;
+                    if !self.broadcast_rx.is_empty() {
+                        continue;
+                    }
                     break;
                 }
             }
@@ -464,6 +473,7 @@ impl Switchboard {
         let mut contact_rx = contact_tx.as_ref().unwrap().subscribe();
         contact_tx.unwrap().send(message).unwrap();
 
+        let mut presence = String::from("None");
         while let Ok(message) = contact_rx.recv().await {
             if let Message::ToContact {
                 sender,
@@ -472,12 +482,17 @@ impl Switchboard {
             } = message
             {
                 if sender == *email {
-                    if message == "HDN" || message == "None" {
-                        return Err("217");
+                    presence = message;
+                    if !contact_rx.is_empty() {
+                        continue;
                     }
                     break;
                 }
             }
+        }
+
+        if presence == "HDN" || presence == "None" {
+            return Err("217");
         }
 
         Ok(())

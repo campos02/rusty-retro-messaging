@@ -27,7 +27,11 @@ impl Command for Chg {
 
         user.presence = Some(args[2].to_string());
         user.client_id = Some(args[3].parse().unwrap());
-        user.msn_object = Some(args[4].to_string());
+        user.msn_object = if args.len() > 4 {
+            Some(args[4].to_string())
+        } else {
+            None
+        };
 
         Ok(vec![command.to_string()])
     }
