@@ -4,8 +4,8 @@ use crate::{
     notification_server::commands::{
         adc::Adc, adg::Adg, blp::Blp, broadcasted_command::BroadcastedCommand, chg::Chg,
         command::Command, cvr::Cvr, fln::Fln, gcf::Gcf, gtc::Gtc, iln::Iln, nln::Nln, prp::Prp,
-        reg::Reg, rem::Rem, rmg::Rmg, sbp::Sbp, syn::Syn, ubx::Ubx, url::Url, usr::Usr, uux::Uux,
-        ver::Ver, xfr::Xfr,
+        reg::Reg, rem::Rem, rmg::Rmg, sbp::Sbp, sdc::Sdc, syn::Syn, ubx::Ubx, url::Url, usr::Usr,
+        uux::Uux, ver::Ver, xfr::Xfr,
     },
     switchboard::session::Session,
 };
@@ -443,6 +443,14 @@ impl NotificationServer {
                             println!("S: {err}");
                         }
                     };
+                }
+
+                "SDC" => {
+                    let responses = Sdc.handle(&message).unwrap();
+                    for reply in responses {
+                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        println!("S: {reply}");
+                    }
                 }
 
                 "ADC" => {

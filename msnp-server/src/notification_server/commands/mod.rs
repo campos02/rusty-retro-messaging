@@ -15,6 +15,7 @@ pub mod reg;
 pub mod rem;
 pub mod rmg;
 pub mod sbp;
+pub mod sdc;
 pub mod syn;
 pub mod ubx;
 pub mod url;
