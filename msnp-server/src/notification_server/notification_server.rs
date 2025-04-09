@@ -223,8 +223,8 @@ impl NotificationServer {
                     let tr_id = command[1];
                     let err = format!("207 {tr_id}\r\n");
 
-                    println!("S: {err}");
                     wr.write_all(err.as_bytes()).await.unwrap();
+                    println!("S: {err}");
                 }
 
                 "SYN" => {
@@ -708,8 +708,8 @@ impl NotificationServer {
                             })
                             .unwrap();
 
-                        println!("S: {reply}");
                         wr.write_all(reply.as_bytes()).await.unwrap();
+                        println!("S: {reply}");
                     }
                 }
 
@@ -904,10 +904,12 @@ impl NotificationServer {
 
                 self.send_to_contact_thread(&sender, thread_message).await;
                 wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
             }
 
             "REM" => {
                 wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
             }
 
             "RNG" => {
@@ -926,6 +928,7 @@ impl NotificationServer {
 
                     if presence != "HDN" {
                         wr.write_all(message.as_bytes()).await.unwrap();
+                        println!("S: {message}");
                     }
                 } else {
                     let thread_message = Message::ToContact {
@@ -944,6 +947,8 @@ impl NotificationServer {
 
             "OUT" => {
                 wr.write_all(message.as_bytes()).await.unwrap();
+                println!("S: {message}");
+
                 return Err("User logged in in another computer");
             }
             _ => (),

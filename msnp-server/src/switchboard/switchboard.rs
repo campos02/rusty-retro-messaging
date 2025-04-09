@@ -293,16 +293,16 @@ impl Switchboard {
                     let tr_id = command[1];
                     let err = format!("911 {tr_id}\r\n");
 
-                    println!("S: {err}");
                     wr.write_all(err.as_bytes()).await.unwrap();
+                    println!("S: {err}");
                 }
 
                 "ANS" => {
                     let tr_id = command[1];
                     let err = format!("911 {tr_id}\r\n");
 
-                    println!("S: {err}");
                     wr.write_all(err.as_bytes()).await.unwrap();
+                    println!("S: {err}");
                 }
 
                 "CAL" => {
