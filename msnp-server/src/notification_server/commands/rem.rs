@@ -1,3 +1,4 @@
+use super::broadcasted_command::BroadcastedCommand;
 use super::command::Command;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
@@ -192,5 +193,14 @@ impl Command for Rem {
 
             return Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")]);
         }
+    }
+}
+
+impl BroadcastedCommand for Rem {
+    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+        let _ = command;
+        let user_email = &user.email;
+
+        format!("REM 0 RL N={user_email}\r\n")
     }
 }

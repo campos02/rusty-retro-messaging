@@ -466,10 +466,10 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        message: reply
-                                            .replace("FL", "RL")
-                                            .replace(args[1], "0")
-                                            .replace(&(" ".to_string() + args[5]), ""),
+                                        message: Adc::convert(
+                                            self.authenticated_user.as_ref().unwrap(),
+                                            &message,
+                                        ),
                                         disconnecting: false,
                                     };
 
@@ -533,14 +533,10 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
-                                        message: reply
-                                            .replace("FL", "RL")
-                                            .replace(args[1], "0")
-                                            .replace(args[3], "1")
-                                            .replace(
-                                                "\r\n",
-                                                format!(" {contact_email}\r\n").as_str(),
-                                            ),
+                                        message: Rem::convert(
+                                            self.authenticated_user.as_ref().unwrap(),
+                                            &message,
+                                        ),
                                         disconnecting: false,
                                     };
 
@@ -903,6 +899,7 @@ impl NotificationServer {
                 };
 
                 self.send_to_contact_thread(&sender, thread_message).await;
+
                 wr.write_all(message.as_bytes()).await.unwrap();
                 println!("S: {message}");
             }

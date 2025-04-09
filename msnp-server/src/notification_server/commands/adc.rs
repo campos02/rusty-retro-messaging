@@ -1,3 +1,4 @@
+use super::broadcasted_command::BroadcastedCommand;
 use super::command::Command;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
@@ -219,5 +220,15 @@ impl Command for Adc {
         }
 
         Err(format!("208 {tr_id}\r\n"))
+    }
+}
+
+impl BroadcastedCommand for Adc {
+    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+        let _ = command;
+        let user_email = &user.email;
+        let user_display_name = &user.display_name;
+
+        format!("ADC 0 RL N={user_email} F={user_display_name}\r\n")
     }
 }
