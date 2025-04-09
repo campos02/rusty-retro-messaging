@@ -25,8 +25,6 @@ use tokio::{
 pub struct NotificationServer {
     pool: Pool<ConnectionManager<MysqlConnection>>,
     pub broadcast_tx: broadcast::Sender<Message>,
-    broadcast_rx: broadcast::Receiver<Message>,
-    contact_tx: Option<broadcast::Sender<Message>>,
     contact_rx: Option<broadcast::Receiver<Message>>,
     pub authenticated_user: Option<AuthenticatedUser>,
     protocol_version: Option<String>,
@@ -40,8 +38,6 @@ impl NotificationServer {
         NotificationServer {
             pool,
             broadcast_tx: broadcast_tx.clone(),
-            broadcast_rx: broadcast_tx.subscribe(),
-            contact_tx: None,
             contact_rx: None,
             authenticated_user: None,
             protocol_version: None,
@@ -53,8 +49,6 @@ impl NotificationServer {
         let mut buf = vec![0; 1664];
 
         if self.authenticated_user.is_some() {
-            let contact_rx = self.contact_rx.as_mut().unwrap();
-
             tokio::select! {
                 received = rd.read(&mut buf) => {
                     let received = received.unwrap();
@@ -66,7 +60,7 @@ impl NotificationServer {
                     self.handle_client_commands(&mut wr, messages).await?
                 }
 
-                received = contact_rx.recv() => {
+                received = self.contact_rx.as_mut().unwrap().recv() => {
                     self.handle_thread_commands(&mut wr, received.unwrap()).await?
                 }
             }
@@ -179,26 +173,16 @@ impl NotificationServer {
 
                             if reply.contains("OK") && !reply.contains("TWN") {
                                 let user_email = usr.get_user_email().unwrap();
-
                                 self.authenticated_user =
                                     Some(AuthenticatedUser::new(user_email.clone()));
 
                                 let thread_message = Message::ToContact {
                                     sender: user_email.clone(),
+                                    receiver: user_email.clone(),
                                     message: "OUT OTH\r\n".to_string(),
-                                    disconnecting: false,
                                 };
 
-                                let self_tx = NotificationServer::request_contact_tx(
-                                    &user_email,
-                                    &self.broadcast_tx,
-                                    &mut self.broadcast_rx,
-                                )
-                                .await;
-
-                                if let Some(sender) = self_tx {
-                                    sender.send(thread_message).unwrap();
-                                }
+                                self.broadcast_tx.send(thread_message).unwrap();
 
                                 let (tx, _) = broadcast::channel::<Message>(16);
                                 self.broadcast_tx
@@ -208,7 +192,6 @@ impl NotificationServer {
                                     })
                                     .unwrap();
 
-                                self.contact_tx = Some(tx.clone());
                                 self.contact_rx = Some(tx.subscribe());
                             }
                         }
@@ -298,11 +281,11 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: email.clone(),
                                         message: nln_command,
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&email, thread_message).await;
+                                    self.broadcast_tx.send(thread_message).unwrap();
                                 } else {
                                     let fln_command = Fln::convert(
                                         &self.authenticated_user.as_ref().unwrap(),
@@ -316,11 +299,11 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: email.clone(),
                                         message: fln_command,
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&email, message).await;
+                                    self.broadcast_tx.send(message).unwrap();
                                     continue;
                                 }
 
@@ -332,11 +315,11 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: email.clone(),
                                         message: message.clone(),
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&email, thread_message).await;
+                                    self.broadcast_tx.send(thread_message).unwrap();
                                 }
                             }
                         }
@@ -395,11 +378,11 @@ impl NotificationServer {
 
                         let thread_message = Message::ToContact {
                             sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                            receiver: email.clone(),
                             message: ubx_command,
-                            disconnecting: false,
                         };
 
-                        self.send_to_contact_thread(&email, thread_message).await;
+                        self.broadcast_tx.send(thread_message).unwrap();
                     }
                 }
 
@@ -467,6 +450,8 @@ impl NotificationServer {
 
                                 let args: Vec<&str> = reply.trim().split(' ').collect();
                                 if args[2] == "FL" && args[3].starts_with("N=") {
+                                    let contact_email = args[3].replace("N=", "");
+
                                     let reply = Message::ToContact {
                                         sender: self
                                             .authenticated_user
@@ -474,18 +459,19 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: contact_email,
                                         message: Adc::convert(
                                             self.authenticated_user.as_ref().unwrap(),
                                             &message,
                                         ),
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&args[3].replace("N=", ""), reply)
-                                        .await;
+                                    self.broadcast_tx.send(reply).unwrap();
                                 }
 
                                 if args[2] == "BL" && args[3].starts_with("N=") {
+                                    let contact_email = args[3].replace("N=", "");
+
                                     let fln_command = Fln::convert(
                                         &self.authenticated_user.as_ref().unwrap(),
                                         &message,
@@ -498,15 +484,11 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: contact_email.clone(),
                                         message: fln_command,
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(
-                                        &args[3].replace("N=", ""),
-                                        message,
-                                    )
-                                    .await;
+                                    self.broadcast_tx.send(message).unwrap();
                                 }
                             }
                         }
@@ -541,14 +523,14 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: contact_email,
                                         message: Rem::convert(
                                             self.authenticated_user.as_ref().unwrap(),
                                             &message,
                                         ),
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&contact_email, reply).await;
+                                    self.broadcast_tx.send(reply).unwrap();
                                 }
 
                                 if args[2] == "BL" {
@@ -566,12 +548,11 @@ impl NotificationServer {
                                             .unwrap()
                                             .email
                                             .clone(),
+                                        receiver: contact_email,
                                         message: nln_command,
-                                        disconnecting: false,
                                     };
 
-                                    self.send_to_contact_thread(&contact_email, thread_message)
-                                        .await;
+                                    self.broadcast_tx.send(thread_message).unwrap();
                                 }
                             }
                         }
@@ -741,8 +722,8 @@ impl NotificationServer {
     ) -> Result<(), &'static str> {
         let Message::ToContact {
             sender,
+            receiver: _,
             message,
-            disconnecting,
         } = message
         else {
             return Err("Message type must be ToContact");
@@ -802,9 +783,6 @@ impl NotificationServer {
                     .get_mut(contact)
                 {
                     contact.presence = None;
-                    if disconnecting {
-                        contact.contact_tx = None;
-                    }
                 }
 
                 wr.write_all(message.as_bytes()).await.unwrap();
@@ -846,21 +824,21 @@ impl NotificationServer {
 
                 let thread_message = Message::ToContact {
                     sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    receiver: sender.clone(),
                     message: iln_command,
-                    disconnecting: false,
                 };
 
-                self.send_to_contact_thread(&sender, thread_message).await;
+                self.broadcast_tx.send(thread_message).unwrap();
 
                 let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
 
                 let thread_message = Message::ToContact {
                     sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    receiver: sender,
                     message: ubx_command,
-                    disconnecting: false,
                 };
 
-                self.send_to_contact_thread(&sender, thread_message).await;
+                self.broadcast_tx.send(thread_message).unwrap();
             }
 
             "ADC" => {
@@ -892,21 +870,21 @@ impl NotificationServer {
 
                 let thread_message = Message::ToContact {
                     sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    receiver: sender.clone(),
                     message: nln_command,
-                    disconnecting: false,
                 };
 
-                self.send_to_contact_thread(&sender, thread_message).await;
+                self.broadcast_tx.send(thread_message).unwrap();
 
                 let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
 
                 let thread_message = Message::ToContact {
                     sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    receiver: sender,
                     message: ubx_command,
-                    disconnecting: false,
                 };
 
-                self.send_to_contact_thread(&sender, thread_message).await;
+                self.broadcast_tx.send(thread_message).unwrap();
 
                 wr.write_all(message.as_bytes()).await.unwrap();
                 println!("S: {message}");
@@ -921,15 +899,11 @@ impl NotificationServer {
                 if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                        receiver: sender,
                         message: presence.clone(),
-                        disconnecting: false,
                     };
 
-                    self.contact_tx
-                        .as_ref()
-                        .unwrap()
-                        .send(thread_message)
-                        .unwrap();
+                    self.broadcast_tx.send(thread_message).unwrap();
 
                     if presence != "HDN" {
                         wr.write_all(message.as_bytes()).await.unwrap();
@@ -938,15 +912,11 @@ impl NotificationServer {
                 } else {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                        receiver: sender,
                         message: "None".to_string(),
-                        disconnecting: false,
                     };
 
-                    self.contact_tx
-                        .as_ref()
-                        .unwrap()
-                        .send(thread_message)
-                        .unwrap();
+                    self.broadcast_tx.send(thread_message).unwrap();
                 }
             }
 
@@ -962,71 +932,18 @@ impl NotificationServer {
         Ok(())
     }
 
-    async fn send_to_contact_thread(&mut self, email: &String, message: Message) {
-        let Some(contact) = self
-            .authenticated_user
-            .as_mut()
-            .unwrap()
-            .contacts
-            .get_mut(email)
-        else {
-            return;
-        };
-
-        if contact.contact_tx.is_none() {
-            contact.contact_tx = NotificationServer::request_contact_tx(
-                &email,
-                &self.broadcast_tx,
-                &mut self.broadcast_rx,
-            )
-            .await;
-        }
-
-        if contact.contact_tx.is_none() {
-            println!("No tx found for {}", email);
-            return;
-        }
-
-        if contact.contact_tx.as_ref().unwrap().send(message).is_err() {
-            println!("Error when sending to {}", email);
-        }
-    }
-
-    async fn request_contact_tx(
-        email: &String,
-        broadcast_tx: &broadcast::Sender<Message>,
-        broadcast_rx: &mut broadcast::Receiver<Message>,
-    ) -> Option<broadcast::Sender<Message>> {
-        broadcast_tx.send(Message::Get(email.clone())).unwrap();
-
-        let mut contact_tx: Option<broadcast::Sender<Message>> = None;
-        while let Ok(message) = broadcast_rx.recv().await {
-            if let Message::Value { key, value } = message {
-                if key == email.to_string() {
-                    contact_tx = value;
-                    if !broadcast_rx.is_empty() {
-                        continue;
-                    }
-                    break;
-                }
-            }
-        }
-
-        contact_tx
-    }
-
-    pub(crate) async fn send_disconnecting_fln_to_contacts(&mut self) {
+    pub(crate) async fn send_fln_to_contacts(&mut self) {
         for email in self.authenticated_user.clone().unwrap().contacts.keys() {
             let fln_command =
                 Fln::convert(&self.authenticated_user.as_ref().unwrap(), &"".to_string());
 
             let message = Message::ToContact {
                 sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                receiver: email.clone(),
                 message: fln_command,
-                disconnecting: true,
             };
 
-            self.send_to_contact_thread(&email, message).await;
+            self.broadcast_tx.send(message).unwrap();
         }
     }
 }

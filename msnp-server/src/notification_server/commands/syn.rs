@@ -104,7 +104,6 @@ impl Command for Syn {
                 in_forward_list: contact.in_forward_list,
                 in_allow_list: contact.in_allow_list,
                 in_block_list: contact.in_block_list,
-                contact_tx: None,
             };
 
             self.authenticated_user

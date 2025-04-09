@@ -20,8 +20,8 @@ pub enum Message {
 
     ToContact {
         sender: String,
+        receiver: String,
         message: String,
-        disconnecting: bool,
     },
 
     GetSession(String),

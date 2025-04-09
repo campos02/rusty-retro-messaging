@@ -328,9 +328,9 @@ impl Switchboard {
                     );
 
                     let message = Message::ToContact {
-                        sender: email.to_string(),
+                        sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                        receiver: email.to_string(),
                         message: rng,
-                        disconnecting: false,
                     };
 
                     if let Err(err) = self.invite_to_session(&email.to_string(), message).await {
@@ -453,7 +453,7 @@ impl Switchboard {
 
         self.broadcast_tx.send(Message::Get(email.clone())).unwrap();
 
-        let mut contact_tx: Option<broadcast::Sender<Message>> = None;
+        let mut contact_tx = None;
         while let Ok(message) = self.broadcast_rx.recv().await {
             if let Message::Value { key, value } = message {
                 if key == *email {
@@ -477,8 +477,8 @@ impl Switchboard {
         while let Ok(message) = contact_rx.recv().await {
             if let Message::ToContact {
                 sender,
+                receiver: _,
                 message,
-                disconnecting: _,
             } = message
             {
                 if sender == *email {

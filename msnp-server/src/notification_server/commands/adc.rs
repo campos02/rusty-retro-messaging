@@ -153,7 +153,6 @@ impl Command for Adc {
                         in_forward_list: forward_list,
                         in_allow_list: allow_list,
                         in_block_list: block_list,
-                        contact_tx: None,
                     },
                 );
             };

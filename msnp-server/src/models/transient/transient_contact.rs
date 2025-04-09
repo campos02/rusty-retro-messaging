@@ -1,6 +1,3 @@
-use crate::Message;
-use tokio::sync::broadcast;
-
 #[derive(Clone)]
 pub struct TransientContact {
     pub email: String,
@@ -10,5 +7,4 @@ pub struct TransientContact {
     pub in_forward_list: bool,
     pub in_allow_list: bool,
     pub in_block_list: bool,
-    pub contact_tx: Option<broadcast::Sender<Message>>,
 }

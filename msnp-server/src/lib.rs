@@ -57,7 +57,7 @@ pub async fn listen() {
                             if error != "User logged in in another computer" {
                                 if let Some(ref user) = connection.authenticated_user {
                                     connection.broadcast_tx.send(Message::Remove(user.email.clone())).unwrap();
-                                    connection.send_disconnecting_fln_to_contacts().await;
+                                    connection.send_fln_to_contacts().await;
                                 }
                             }
 
@@ -106,6 +106,14 @@ pub async fn listen() {
 
                     Message::Remove(key) => {
                         channels.remove(&key);
+                    }
+
+                    Message::ToContact { receiver, sender, message } => {
+                        let tx = channels.get(&receiver);
+                        if let Some(tx) = tx {
+                            tx.send(Message::ToContact { sender: sender, receiver: receiver, message: message })
+                            .unwrap();
+                        }
                     }
 
                     Message::GetSession(key) => {
