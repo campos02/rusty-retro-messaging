@@ -666,36 +666,41 @@ impl NotificationServer {
                 }
 
                 "XFR" => {
-                    let responses = Xfr
-                        .handle_with_authenticated_user(
-                            &message,
-                            self.authenticated_user.as_mut().unwrap(),
-                        )
-                        .unwrap();
+                    match Xfr.handle_with_authenticated_user(
+                        &message,
+                        self.authenticated_user.as_mut().unwrap(),
+                    ) {
+                        Ok(responses) => {
+                            for reply in responses {
+                                let (tx, _) = broadcast::channel::<Message>(16);
+                                let args: Vec<&str> = reply.trim().split(' ').collect();
+                                let session_id = format!("{:08}", OsRng.next_u32());
+                                let cki_string = args[5].to_string();
 
-                    for reply in responses {
-                        let (tx, _) = broadcast::channel::<Message>(16);
-                        let args: Vec<&str> = reply.trim().split(' ').collect();
-                        let session_id = format!("{:08}", OsRng.next_u32());
-                        let cki_string = args[5].to_string();
+                                let session = Session {
+                                    session_id,
+                                    cki_string: cki_string.clone(),
+                                    session_tx: tx,
+                                    principals: Arc::new(Mutex::new(Vec::new())),
+                                };
 
-                        let session = Session {
-                            session_id,
-                            cki_string: cki_string.clone(),
-                            session_tx: tx,
-                            principals: Arc::new(Mutex::new(Vec::new())),
-                        };
+                                self.broadcast_tx
+                                    .send(Message::SetSession {
+                                        key: cki_string,
+                                        value: session,
+                                    })
+                                    .unwrap();
 
-                        self.broadcast_tx
-                            .send(Message::SetSession {
-                                key: cki_string,
-                                value: session,
-                            })
-                            .unwrap();
+                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                println!("S: {reply}");
+                            }
+                        }
 
-                        wr.write_all(reply.as_bytes()).await.unwrap();
-                        println!("S: {reply}");
-                    }
+                        Err(error) => {
+                            wr.write_all(error.as_bytes()).await.unwrap();
+                            println!("S: {error}");
+                        }
+                    };
                 }
 
                 "PNG" => {
@@ -899,7 +904,7 @@ impl NotificationServer {
                 if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        receiver: sender,
+                        receiver: self.authenticated_user.as_ref().unwrap().email.clone(),
                         message: presence.clone(),
                     };
 
@@ -912,7 +917,7 @@ impl NotificationServer {
                 } else {
                     let thread_message = Message::ToContact {
                         sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        receiver: sender,
+                        receiver: self.authenticated_user.as_ref().unwrap().email.clone(),
                         message: "None".to_string(),
                     };
 

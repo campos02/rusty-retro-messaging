@@ -60,7 +60,6 @@ pub async fn listen() {
                                     connection.send_fln_to_contacts().await;
                                 }
                             }
-
                             break;
                         }
                     }
@@ -93,11 +92,9 @@ pub async fn listen() {
                 match message {
                     Message::Get(key) => {
                         let contact_tx = channels.get(&key);
-                        tx.send(Message::Value {
-                            key,
-                            value: contact_tx.cloned(),
-                        })
-                        .unwrap();
+                        if tx.send(Message::Value { key: key.clone(), value: contact_tx.cloned() }).is_err() {
+                            println!("Error sending tx to {}", key);
+                        }
                     }
 
                     Message::Set { key, value } => {
@@ -111,18 +108,17 @@ pub async fn listen() {
                     Message::ToContact { receiver, sender, message } => {
                         let tx = channels.get(&receiver);
                         if let Some(tx) = tx {
-                            tx.send(Message::ToContact { sender: sender, receiver: receiver, message: message })
-                            .unwrap();
+                            if tx.send(Message::ToContact { sender: sender, receiver: receiver.clone(), message: message }).is_err() {
+                                println!("Error sending to {}", receiver);
+                            }
                         }
                     }
 
                     Message::GetSession(key) => {
                         let session = sessions.get(&key);
-                        tx.send(Message::Session {
-                            key,
-                            value: session.cloned(),
-                        })
-                        .unwrap();
+                        if tx.send(Message::Session { key: key.clone(), value: session.cloned() }).is_err() {
+                            println!("Error sending session to {}", key);
+                        }
                     }
 
                     Message::SetSession { key, value } => {
