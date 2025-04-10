@@ -275,7 +275,6 @@ impl Switchboard {
                         let message = Message::ToPrincipals {
                             sender: user_email.to_string(),
                             message: URL_SAFE.encode(joi.as_bytes()),
-                            disconnecting: false,
                         };
 
                         self.send_to_session(message).await;
@@ -360,7 +359,6 @@ impl Switchboard {
                     let message = Message::ToPrincipals {
                         sender: email,
                         message: base64_message,
-                        disconnecting: false,
                     };
 
                     self.send_to_session(message).await;
@@ -390,12 +388,7 @@ impl Switchboard {
         wr: &mut WriteHalf<'_>,
         message: Message,
     ) -> Result<(), &'static str> {
-        let Message::ToPrincipals {
-            sender,
-            message,
-            disconnecting: _,
-        } = message
-        else {
+        let Message::ToPrincipals { sender, message } = message else {
             return Err("Message type must be ToPrincipals");
         };
 
@@ -523,7 +516,6 @@ impl Switchboard {
         let message = Message::ToPrincipals {
             sender: user_email,
             message: URL_SAFE.encode(bye_command.as_bytes()),
-            disconnecting: true,
         };
 
         self.send_to_session(message).await;

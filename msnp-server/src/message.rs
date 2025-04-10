@@ -41,6 +41,5 @@ pub enum Message {
     ToPrincipals {
         sender: String,
         message: String,
-        disconnecting: bool,
     },
 }
