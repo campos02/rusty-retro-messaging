@@ -7,7 +7,7 @@ use argon2::{
         rand_core::{OsRng, RngCore},
     },
 };
-use axum::{Json, extract::State, response::IntoResponse};
+use axum::{Json, extract::State};
 use diesel::{
     ExpressionMethods, MysqlConnection, RunQueryDsl,
     dsl::insert_into,
@@ -24,7 +24,7 @@ pub(crate) struct CreateUser {
 pub(crate) async fn register(
     State(pool): State<Pool<ConnectionManager<MysqlConnection>>>,
     Json(payload): Json<CreateUser>,
-) -> impl IntoResponse {
+) -> Json<String> {
     let connection = &mut pool.get().unwrap();
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
@@ -49,5 +49,5 @@ pub(crate) async fn register(
         .execute(connection)
         .unwrap();
 
-    "User created sucessfully"
+    Json(String::from("User created sucessfully"))
 }
