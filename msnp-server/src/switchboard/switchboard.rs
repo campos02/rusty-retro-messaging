@@ -444,11 +444,13 @@ impl Switchboard {
             }
         }
 
-        self.broadcast_tx.send(Message::Get(email.clone())).unwrap();
+        self.broadcast_tx
+            .send(Message::GetTx(email.clone()))
+            .unwrap();
 
         let mut contact_tx = None;
         while let Ok(message) = self.broadcast_rx.recv().await {
-            if let Message::Value { key, value } = message {
+            if let Message::Tx { key, value } = message {
                 if key == *email {
                     contact_tx = value;
                     if !self.broadcast_rx.is_empty() {

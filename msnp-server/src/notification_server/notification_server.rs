@@ -173,7 +173,7 @@ impl NotificationServer {
 
                             if reply.contains("OK") && !reply.contains("TWN") {
                                 self.broadcast_tx.send(Message::AddUser).unwrap();
-                                
+
                                 let user_email = usr.get_user_email().unwrap();
                                 self.authenticated_user =
                                     Some(AuthenticatedUser::new(user_email.clone()));
@@ -188,7 +188,7 @@ impl NotificationServer {
 
                                 let (tx, _) = broadcast::channel::<Message>(16);
                                 self.broadcast_tx
-                                    .send(Message::Set {
+                                    .send(Message::SetTx {
                                         key: user_email,
                                         value: tx.clone(),
                                     })

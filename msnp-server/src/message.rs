@@ -4,16 +4,16 @@ use tokio::sync::broadcast::Sender;
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum Message {
-    Get(String),
+    GetTx(String),
 
-    Set {
+    SetTx {
         key: String,
         value: Sender<Message>,
     },
 
-    Remove(String),
+    RemoveTx(String),
 
-    Value {
+    Tx {
         key: String,
         value: Option<Sender<Message>>,
     },

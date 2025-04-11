@@ -62,7 +62,7 @@ pub async fn listen() {
 
                             if error != "User logged in in another computer" {
                                 if let Some(ref user) = connection.authenticated_user {
-                                    connection.broadcast_tx.send(Message::Remove(user.email.clone())).unwrap();
+                                    connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())).unwrap();
                                     connection.send_fln_to_contacts().await;
                                 }
                             }
@@ -96,18 +96,18 @@ pub async fn listen() {
             message = rx.recv() => {
                 let message = message.unwrap();
                 match message {
-                    Message::Get(key) => {
+                    Message::GetTx(key) => {
                         let contact_tx = channels.get(&key);
-                        if tx.send(Message::Value { key: key.clone(), value: contact_tx.cloned() }).is_err() {
+                        if tx.send(Message::Tx { key: key.clone(), value: contact_tx.cloned() }).is_err() {
                             println!("Error sending tx to {}", key);
                         }
                     }
 
-                    Message::Set { key, value } => {
+                    Message::SetTx { key, value } => {
                         channels.insert(key, value);
                     }
 
-                    Message::Remove(key) => {
+                    Message::RemoveTx(key) => {
                         channels.remove(&key);
                     }
 
