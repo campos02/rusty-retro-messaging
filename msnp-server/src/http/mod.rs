@@ -1,3 +1,4 @@
+use crate::message::Message;
 use axum::{
     Router,
     http::HeaderValue,
@@ -13,19 +14,26 @@ use hyper_util::{
     server,
 };
 use std::env;
+use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
 mod login_server;
 mod nexus;
 mod register;
+mod stats;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
-pub async fn listen(pool: Pool<ConnectionManager<MysqlConnection>>) {
+pub async fn listen(
+    pool: Pool<ConnectionManager<MysqlConnection>>,
+    broadcast_tx: broadcast::Sender<Message>,
+) {
     let frontend_url = env::var("FRONTEND_URL").expect("FRONTEND_URL not set");
     let cors = CorsLayer::new().allow_origin(frontend_url.parse::<HeaderValue>().unwrap());
 
     let app = Router::new()
+        .route("/_r2m/stats", get(stats::stats))
+        .with_state(broadcast_tx)
         .route("/_r2m/register", post(register::register))
         .layer(cors)
         .route("/rdr/pprdr.asp", get(nexus::nexus))

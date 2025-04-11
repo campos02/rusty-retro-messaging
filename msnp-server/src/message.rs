@@ -42,4 +42,9 @@ pub enum Message {
         sender: String,
         message: String,
     },
+
+    UserCount(u32),
+    GetUsers,
+    AddUser,
+    RemoveUser,
 }

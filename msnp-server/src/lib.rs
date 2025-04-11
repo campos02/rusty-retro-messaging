@@ -33,13 +33,15 @@ pub async fn listen() {
         .await
         .unwrap();
 
+    let (tx, mut rx) = broadcast::channel::<Message>(16);
+
     println!("Listening on port 1863");
-    tokio::spawn(http::listen(pool.clone()));
+    tokio::spawn(http::listen(pool.clone(), tx.clone()));
     println!("Listening for HTTP on port 3000");
 
-    let (tx, mut rx) = broadcast::channel::<Message>(16);
     let mut channels: HashMap<String, broadcast::Sender<Message>> = HashMap::new();
     let mut sessions: HashMap<String, Session> = HashMap::new();
+    let mut user_count: u32 = 0;
 
     loop {
         tokio::select! {
@@ -53,6 +55,10 @@ pub async fn listen() {
                     loop {
                         if let Err(error) = connection.listen(&mut socket).await {
                             eprintln!("{error}");
+
+                            if connection.authenticated_user.is_some() {
+                                connection.broadcast_tx.send(Message::RemoveUser).unwrap();
+                            }
 
                             if error != "User logged in in another computer" {
                                 if let Some(ref user) = connection.authenticated_user {
@@ -127,6 +133,20 @@ pub async fn listen() {
 
                     Message::RemoveSession(key) => {
                         sessions.remove(&key);
+                    }
+
+                    Message::GetUsers => {
+                        if tx.send(Message::UserCount(user_count)).is_err() {
+                            println!("Error sending user count");
+                        }
+                    }
+
+                    Message::AddUser => {
+                        user_count += 1;
+                    }
+
+                    Message::RemoveUser => {
+                        user_count -= 1;
                     }
                     _ => ()
                 };

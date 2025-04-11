@@ -172,6 +172,8 @@ impl NotificationServer {
                             println!("S: {reply}");
 
                             if reply.contains("OK") && !reply.contains("TWN") {
+                                self.broadcast_tx.send(Message::AddUser).unwrap();
+                                
                                 let user_email = usr.get_user_email().unwrap();
                                 self.authenticated_user =
                                     Some(AuthenticatedUser::new(user_email.clone()));
