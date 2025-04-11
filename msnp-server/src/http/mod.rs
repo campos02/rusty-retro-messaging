@@ -1,5 +1,6 @@
 use axum::{
     Router,
+    http::HeaderValue,
     routing::{get, post},
 };
 use diesel::{
@@ -11,6 +12,8 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server,
 };
+use std::env;
+use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
 mod login_server;
@@ -19,12 +22,12 @@ mod register;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
 pub async fn listen(pool: Pool<ConnectionManager<MysqlConnection>>) {
+    let frontend_url = env::var("FRONTEND_URL").expect("FRONTEND_URL not set");
+    let cors = CorsLayer::new().allow_origin(frontend_url.parse::<HeaderValue>().unwrap());
+
     let app = Router::new()
-        .route(
-            "/",
-            get(|| async { "MSNP server, start by connecting on port 1863" }),
-        )
-        .route("/register", post(register::register))
+        .route("/_r2m/register", post(register::register))
+        .layer(cors)
         .route("/rdr/pprdr.asp", get(nexus::nexus))
         .route("/login.srf", get(login_server::login_server))
         .with_state(pool);

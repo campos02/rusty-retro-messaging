@@ -21,3 +21,4 @@ guid-create = "0.4.1"
 rand_distr = { version = "0.5.1", features = ["alloc"] }
 rand = { version = "0.9.0", features = ["alloc"] }
 base64 = "0.22.1"
+tower-http = { version = "0.6.2", features = ["cors"] }

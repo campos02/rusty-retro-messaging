@@ -1,6 +1,13 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    codes (id) {
+        id -> Integer,
+        code -> Text,
+    }
+}
+
+diesel::table! {
     contacts (id) {
         id -> Integer,
         user_id -> Integer,
@@ -56,4 +63,11 @@ diesel::joinable!(group_members -> groups (group_id));
 diesel::joinable!(groups -> users (user_id));
 diesel::joinable!(tokens -> users (user_id));
 
-diesel::allow_tables_to_appear_in_same_query!(contacts, group_members, groups, tokens, users,);
+diesel::allow_tables_to_appear_in_same_query!(
+    codes,
+    contacts,
+    group_members,
+    groups,
+    tokens,
+    users,
+);
