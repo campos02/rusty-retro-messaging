@@ -1,0 +1,71 @@
+---
+const backendName = import.meta.env.BACKEND_NAME;
+const response = await fetch(`https://${backendName}/_r2m/stats`);
+const data = await response.json();
+let users = "0 users";
+
+if (data.users == 1) {
+    users = "1 user";
+} else {
+    users = `${data.users} users`;
+}
+---
+<nav class="actions">
+    <div class="pages">
+        <a href="/">R²M</a>
+        <a id="users">{users}</a>
+    </div>
+    <a href="/register" class="home-link">Register</a>
+</nav>
+<style>
+    nav {
+        place-self: start stretch;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        font-size: 1rem;
+        padding: 1rem;
+        text-align: center;
+    }
+
+    a {
+        text-decoration: none;
+        color: light-dark(var(--actions-text-color), var(--actions-text-color-dark));
+    }
+
+    a:hover {
+        color: light-dark(var(--actions-hover-color), var(--actions-hover-color-dark));
+    }
+
+    #users:hover {
+        color: light-dark(var(--actions-text-color), var(--actions-text-color-dark));
+    }
+
+    .pages {
+        place-self: center;
+        display: flex;
+        gap: 2rem;
+        margin-left: 3.5rem;
+    }
+
+    .home-link {
+        place-self: end;
+    }
+
+    @media (max-width: 530px) {
+        nav {
+            gap: 1rem;
+            grid-template-columns: auto;
+        }
+
+        .home-link {
+            place-self: center;
+        }
+
+        .pages {
+            place-self: center;
+            display: grid;
+            gap: 1rem;
+            margin: 0;
+        }
+    }
+</style>

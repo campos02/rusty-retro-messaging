@@ -1,0 +1,62 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+<Layout title="R²M">
+	<main>
+		<h1>R²M</h1>
+		<p>
+			R²M, or Rusty Retro Messaging, is a third-party MSNP server written in Rust aiming to eventually become a federated
+			revival of MSN Messenger. This will be achieved by making use of
+			<a href="https://github.com/polyphony-chat">Polyproto</a> and its extensible nature.
+		</p>
+		<h2>Why federated?</h2>
+		<p>
+			A recurring issue in the revival scene is that servers have a strong network effect, as they can't communicate in a way
+			defined by MSNP. Federation will solve that exactly by allowing user-hosted instances to talk to each other.
+		</p>
+		<h2>Status of the project</h2>
+		<p>
+			Currently the MSNP server itself is in development. It supports MSNP11, i.e. what MSN 7.0 uses, and has most protocol
+			features working.
+		</p>
+		<p>
+			The server is actually available for private testing, if you have a code you can register on the top right
+			and point your client to same domain as this website. Please note that these accounts will likely be lost when the
+			Polyproto integration takes effect.
+		</p>
+		<h2>Open source</h2>
+		<p>
+			This project is to be completely open source, as such the source code is available
+			<a href="https://github.com/campos02/rusty-retro-messaging">here.</a>
+		</p>
+	</main>
+	<style>
+		main {
+            justify-self: center;
+            padding: 1rem 18rem 2rem 18rem;
+        }
+
+		h1 {
+			text-align: center;
+		}
+
+		p {
+			font-size: 1.1rem;
+		}
+
+		a {
+            color: light-dark(var(--link-color), var(--link-color-dark));
+            text-decoration: none;
+        }
+
+        a:hover {
+            color: light-dark(var(--link-hover-color), var(--link-hover-color-dark));
+        }
+
+		@media (max-width: 1380px) {
+			main {
+				padding: 1rem 2rem 2rem 2rem;
+			}
+		}
+	</style>
+</Layout>

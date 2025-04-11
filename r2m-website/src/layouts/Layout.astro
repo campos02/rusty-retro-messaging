@@ -1,0 +1,65 @@
+---
+const { title } = Astro.props;
+import Navbar from "../components/Navbar.astro";
+const websiteUrl = import.meta.env.WEBSITE_URL;
+---
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="description" content="Rusty Retro Messaging">
+        <meta property="og:type" content="website">
+        <meta property="og:url" content={websiteUrl}>
+        <meta property="og:title" content="R²M">
+        <meta property="og:description" content="Rusty Retro Messaging">
+        <title>{title}</title>
+	</head>
+	<body>
+        <Navbar/>
+        <slot />
+	</body>
+    <style>
+        @font-face {
+            font-family: 'Inter';
+            src: url('/fonts/InterVariable.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+            font-display: swap;
+        }
+
+        :root {
+            color-scheme: light dark;
+            --bg-color: #fdfdfd;
+            --bg-grandient-color: #67ffbe;
+            --bg-color-dark: #222;
+            --bg-grandient-color-dark: #0b4a2f;
+            --text-color: black;
+            --text-color-dark: #ffffffec;
+            --text-drop-shadow-color: #f4f4f4;
+            --drop-shadow-color: #777777;
+            --drop-shadow-color-dark: black;
+            --link-color: #1070ff;
+            --link-color-dark: #60a0ff;
+            --link-hover-color: #5294ff;
+            --link-hover-color-dark: #9ec5ff;
+            --actions-text-color: #666;
+            --actions-text-color-dark: #eeeeeef3;
+            --actions-hover-color: black;
+            --actions-hover-color-dark: #fffffffb;
+        }
+
+        body {
+            display: grid;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+            scrollbar-width: thin;
+            background: linear-gradient(light-dark(var(--bg-color), var(--bg-color-dark)), light-dark(var(--bg-grandient-color), var(--bg-grandient-color-dark)));
+            background-attachment: fixed;
+            color: light-dark(var(--text-color), var(--text-color-dark));
+            font-size: 1.05rem;
+            font-weight: 500;
+            font-family: Inter, sans-serif;
+        }
+    </style>
+</html>
