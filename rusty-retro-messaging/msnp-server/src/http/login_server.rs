@@ -24,31 +24,66 @@ use diesel::{
 };
 use regex::Regex;
 
+enum HeaderParsingError {
+    HeaderNotFound,
+    ToStrError,
+    ParameterSplitError,
+    CommaRegexError,
+    UrlDecodingError,
+}
+
 pub(crate) async fn login_server(
     headers: HeaderMap,
     State(pool): State<Pool<ConnectionManager<MysqlConnection>>>,
 ) -> impl IntoResponse {
-    let connection = &mut pool.get().unwrap();
-    let comma_regex = Regex::new("[^,]*").unwrap();
+    let connection = &mut pool.get().expect("Could not get connection from pool");
+    let comma_regex = Regex::new("[^,]*").expect("Could not build regex");
 
-    let authorization = match headers.get(header::AUTHORIZATION) {
-        Some(v) => v,
-        None => return Err(StatusCode::BAD_REQUEST),
-    }
-    .to_str()
-    .unwrap();
-
-    let split = match authorization.split("sign-in=").nth(1) {
-        Some(s) => s,
-        None => return Err(StatusCode::UNAUTHORIZED),
+    let Ok(authorization) = headers
+        .get(header::AUTHORIZATION)
+        .ok_or_else(|| HeaderParsingError::HeaderNotFound)
+        .and_then(|header| {
+            header
+                .to_str()
+                .or_else(|_| Err(HeaderParsingError::ToStrError))
+        })
+    else {
+        return Err(StatusCode::UNAUTHORIZED);
     };
-    let passport = urlencoding::decode(comma_regex.find(split).unwrap().as_str()).expect("UTF-8");
 
-    let split = match authorization.split("pwd=").nth(1) {
-        Some(s) => s,
-        None => return Err(StatusCode::UNAUTHORIZED),
+    let Ok(passport) = authorization
+        .split("sign-in=")
+        .nth(1)
+        .ok_or_else(|| HeaderParsingError::ParameterSplitError)
+        .and_then(|split| {
+            comma_regex
+                .find(split)
+                .ok_or_else(|| HeaderParsingError::CommaRegexError)
+                .and_then(|passport| {
+                    urlencoding::decode(passport.as_str())
+                        .or_else(|_| Err(HeaderParsingError::UrlDecodingError))
+                })
+        })
+    else {
+        return Err(StatusCode::UNAUTHORIZED);
     };
-    let pwd = urlencoding::decode(comma_regex.find(split).unwrap().as_str()).expect("UTF-8");
+
+    let Ok(pwd) = authorization
+        .split("pwd=")
+        .nth(1)
+        .ok_or_else(|| HeaderParsingError::ParameterSplitError)
+        .and_then(|split| {
+            comma_regex
+                .find(split)
+                .ok_or_else(|| HeaderParsingError::CommaRegexError)
+                .and_then(|passport| {
+                    urlencoding::decode(passport.as_str())
+                        .or_else(|_| Err(HeaderParsingError::UrlDecodingError))
+                })
+        })
+    else {
+        return Err(StatusCode::UNAUTHORIZED);
+    };
 
     let Ok(user) = users
         .filter(email.eq(&passport))
@@ -58,7 +93,7 @@ pub(crate) async fn login_server(
         return Err(StatusCode::UNAUTHORIZED);
     };
 
-    let parsed_hash = PasswordHash::new(&user.password).unwrap();
+    let parsed_hash = PasswordHash::new(&user.password).expect("Could not hash password");
     if Argon2::default()
         .verify_password(pwd.as_bytes(), &parsed_hash)
         .is_ok()
@@ -75,7 +110,7 @@ pub(crate) async fn login_server(
                 user_id.eq(&user.id),
             ))
             .execute(connection)
-            .unwrap();
+            .expect("Could not insert token");
 
         return Ok([(
             "Authentication-Info",

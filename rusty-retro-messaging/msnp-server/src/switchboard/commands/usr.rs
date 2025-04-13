@@ -18,13 +18,13 @@ impl Command for Usr {
         user: &mut AuthenticatedUser,
         tr_id: &str,
     ) -> String {
-        let connection = &mut pool.get().unwrap();
+        let connection = &mut pool.get().expect("Could not get connection from pool");
         let user_email = &user.email;
         let user_display_name: String = users
             .filter(email.eq(&user_email))
             .select(display_name)
             .get_result(connection)
-            .unwrap();
+            .expect("Could not get authenticated user display name");
 
         user.display_name = user_display_name.clone();
         format!("USR {tr_id} OK {user_email} {user_display_name}\r\n")

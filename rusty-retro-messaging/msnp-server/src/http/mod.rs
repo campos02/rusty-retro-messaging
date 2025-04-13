@@ -29,7 +29,11 @@ pub async fn listen(
     broadcast_tx: broadcast::Sender<Message>,
 ) {
     let frontend_url = env::var("FRONTEND_URL").expect("FRONTEND_URL not set");
-    let cors = CorsLayer::new().allow_origin(frontend_url.parse::<HeaderValue>().unwrap());
+    let cors = CorsLayer::new().allow_origin(
+        frontend_url
+            .parse::<HeaderValue>()
+            .expect("Could not convert FRONTEND_URL to header"),
+    );
 
     let app = Router::new()
         .route("/_r2m/stats", get(stats::stats))
@@ -40,10 +44,18 @@ pub async fn listen(
         .route("/login.srf", get(login_server::login_server))
         .with_state(pool);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
+        .await
+        .expect("Could bind HTTP server");
 
     loop {
-        let (socket, _remote_addr) = listener.accept().await.unwrap();
+        let (socket, _remote_addr) = match listener.accept().await {
+            Ok(l) => l,
+            Err(error) => {
+                eprintln!("Could not get socket from accepted HTTP connection: {error}");
+                continue;
+            }
+        };
         let tower_service = app.clone();
 
         tokio::spawn(async move {

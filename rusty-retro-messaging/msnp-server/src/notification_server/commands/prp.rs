@@ -22,17 +22,24 @@ impl Command for Prp {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
+        let tr_id = args[1];
         let parameter = args[2];
         let user_display_name = args[3];
 
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
         if parameter == "MFN" {
-            diesel::update(users)
+            if diesel::update(users)
                 .filter(email.eq(&user.email))
                 .set(display_name.eq(&user_display_name))
                 .execute(connection)
-                .unwrap();
+                .is_err()
+            {
+                return Err(format!("603 {tr_id}\r\n"));
+            }
 
             user.display_name = user_display_name.to_string();
         }

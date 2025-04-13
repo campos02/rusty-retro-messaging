@@ -27,16 +27,21 @@ impl Command for Adg {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_name = args[2];
 
-        let user_database = users
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
+        let Ok(user_database) = users
             .filter(email.eq(&user.email))
             .select(User::as_select())
             .get_result(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         if Group::belonging_to(&user_database)
             .filter(name.eq(&group_name))
@@ -48,14 +53,17 @@ impl Command for Adg {
         } else {
             let group_guid = guid_create::GUID::rand().to_string().to_lowercase();
 
-            insert_into(groups)
+            if insert_into(groups)
                 .values((
                     user_id.eq(&user_database.id),
                     name.eq(group_name),
                     guid.eq(&group_guid),
                 ))
                 .execute(connection)
-                .unwrap();
+                .is_err()
+            {
+                return Err(format!("603 {tr_id}\r\n"));
+            }
 
             return Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")]);
         }

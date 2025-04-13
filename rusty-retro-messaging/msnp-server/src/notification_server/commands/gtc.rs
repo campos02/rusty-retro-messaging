@@ -23,16 +23,23 @@ impl Command for Gtc {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
+        let tr_id = args[1];
         let setting = args[2];
 
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
         if setting == "A" || setting == "N" {
-            diesel::update(users)
+            if diesel::update(users)
                 .filter(email.eq(&user.email))
                 .set(gtc.eq(&setting))
                 .execute(connection)
-                .unwrap();
+                .is_err()
+            {
+                return Err(format!("603 {tr_id}\r\n"));
+            }
         }
 
         Ok(vec![command.to_string()])

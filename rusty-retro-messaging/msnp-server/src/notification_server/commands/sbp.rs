@@ -30,18 +30,23 @@ impl Command for Sbp {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let parameter = args[3];
         let contact_display_name = args[4];
 
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
         if parameter == "MFN" {
-            let user_database = users
+            let Ok(user_database) = users
                 .filter(email.eq(&user.email))
                 .select(User::as_select())
                 .get_result(connection)
-                .unwrap();
+            else {
+                return Err(format!("603 {tr_id}\r\n"));
+            };
 
             let Ok(contact) = Contact::belonging_to(&user_database)
                 .inner_join(users.on(id.eq(contact_id)))
@@ -52,16 +57,21 @@ impl Command for Sbp {
                 return Err(format!("208 {tr_id}\r\n"));
             };
 
-            let contact_email: String = users
+            let Ok(contact_email) = users
                 .filter(id.eq(&contact.contact_id))
                 .select(email)
-                .get_result(connection)
-                .unwrap();
+                .get_result::<String>(connection)
+            else {
+                return Err(format!("201 {tr_id}\r\n"));
+            };
 
-            diesel::update(&contact)
+            if diesel::update(&contact)
                 .set(display_name.eq(&contact_display_name))
                 .execute(connection)
-                .unwrap();
+                .is_err()
+            {
+                return Err(format!("603 {tr_id}\r\n"));
+            }
 
             if let Some(contact) = user.contacts.get_mut(&contact_email) {
                 contact.display_name = contact_display_name.to_string();

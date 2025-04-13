@@ -51,28 +51,34 @@ impl NotificationServer {
         if self.authenticated_user.is_some() {
             tokio::select! {
                 received = rd.read(&mut buf) => {
-                    let received = received.unwrap();
+                    let Ok(received) = received else {
+                        return Err("Could not read from client");
+                    };
+
                     if received == 0 {
                         return Err("Client disconnected");
                     }
 
-                    let messages = str::from_utf8(&buf[..received]).unwrap().to_string();
+                    let messages = str::from_utf8(&buf[..received]).expect("NS message contained invalid UTF-8").to_string();
                     self.handle_client_commands(&mut wr, messages).await?
                 }
 
-                received = self.contact_rx.as_mut().unwrap().recv() => {
-                    self.handle_thread_commands(&mut wr, received.unwrap()).await?
+                received = self.contact_rx.as_mut().expect("Could not receive from threads").recv() => {
+                    self.handle_thread_commands(&mut wr, received.expect("Could not receive from threads")).await?
                 }
             }
         } else {
             tokio::select! {
                 received = rd.read(&mut buf) => {
-                    let received = received.unwrap();
+                    let Ok(received) = received else {
+                        return Err("Could not read from client");
+                    };
+
                     if received == 0 {
                         return Err("Client disconnected");
                     }
 
-                    let messages = str::from_utf8(&buf[..received]).unwrap().to_string();
+                    let messages = str::from_utf8(&buf[..received]).expect("NS message contained invalid UTF-8").to_string();
                     self.handle_client_commands(&mut wr, messages).await?
                 }
             }
@@ -94,7 +100,10 @@ impl NotificationServer {
 
             match args[0] {
                 "UUX" => {
-                    let length: usize = args[2].parse().unwrap();
+                    let Ok(length) = args[2].parse::<usize>() else {
+                        return Err("Client sent invalid length");
+                    };
+
                     let length = messages[i].len() + length;
 
                     messages[i] = messages[i].clone() + "\r\n" + messages[i + 1].as_str();
@@ -125,14 +134,20 @@ impl NotificationServer {
                         let responses = match Ver.handle(&message) {
                             Ok(r) => r,
                             Err(err) => {
-                                wr.write_all(err.as_bytes()).await.unwrap();
+                                wr.write_all(err.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {err}");
                                 return Err("Client uses unsupported MSNP version");
                             }
                         };
 
                         for reply in responses {
-                            wr.write_all(reply.as_bytes()).await.unwrap();
+                            wr.write_all(reply.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {reply}");
 
                             let args: Vec<&str> = reply.trim().split(' ').collect();
@@ -151,7 +166,10 @@ impl NotificationServer {
                     "CVR" => {
                         let responses = Cvr.handle(&message).unwrap();
                         for reply in responses {
-                            wr.write_all(reply.as_bytes()).await.unwrap();
+                            wr.write_all(reply.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {reply}");
                         }
                     }
@@ -161,18 +179,26 @@ impl NotificationServer {
                         let responses = match usr.handle(&message) {
                             Ok(r) => r,
                             Err(err) => {
-                                wr.write_all(err.as_bytes()).await.unwrap();
+                                wr.write_all(err.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {err}");
                                 return Err("Disconnecting client");
                             }
                         };
 
                         for reply in responses {
-                            wr.write_all(reply.as_bytes()).await.unwrap();
+                            wr.write_all(reply.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {reply}");
 
                             if reply.contains("OK") && !reply.contains("TWN") {
-                                self.broadcast_tx.send(Message::AddUser).unwrap();
+                                self.broadcast_tx
+                                    .send(Message::AddUser)
+                                    .expect("Could not send to broadcast");
 
                                 let user_email = usr.get_user_email().unwrap();
                                 self.authenticated_user =
@@ -184,7 +210,9 @@ impl NotificationServer {
                                     message: "OUT OTH\r\n".to_string(),
                                 };
 
-                                self.broadcast_tx.send(thread_message).unwrap();
+                                self.broadcast_tx
+                                    .send(thread_message)
+                                    .expect("Could not send to broadcast");
 
                                 let (tx, _) = broadcast::channel::<Message>(16);
                                 self.broadcast_tx
@@ -192,7 +220,7 @@ impl NotificationServer {
                                         key: user_email,
                                         value: tx.clone(),
                                     })
-                                    .unwrap();
+                                    .expect("Could not send to broadcast");
 
                                 self.contact_rx = Some(tx.subscribe());
                             }
@@ -208,19 +236,39 @@ impl NotificationServer {
                     let tr_id = command[1];
                     let err = format!("207 {tr_id}\r\n");
 
-                    wr.write_all(err.as_bytes()).await.unwrap();
+                    wr.write_all(err.as_bytes())
+                        .await
+                        .expect("Could not send to client over socket");
+
                     println!("S: {err}");
                 }
 
                 "SYN" => {
                     let mut syn = Syn::new(
                         self.pool.clone(),
-                        self.authenticated_user.as_ref().unwrap().clone(),
+                        self.authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .clone(),
                     );
 
-                    let responses = syn.handle(&message).unwrap();
+                    let responses = match syn.handle(&message) {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
+                            println!("S: {err}");
+                            continue;
+                        }
+                    };
+
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
 
@@ -230,7 +278,10 @@ impl NotificationServer {
                 "GCF" => {
                     let responses = Gcf.handle(&message).unwrap();
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
                 }
@@ -238,28 +289,56 @@ impl NotificationServer {
                 "URL" => {
                     let responses = Url.handle(&message).unwrap();
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
                 }
 
                 "CHG" => {
-                    let first_chg = self.authenticated_user.as_ref().unwrap().presence.is_none();
+                    let first_chg = self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .presence
+                        .is_none();
                     match Chg.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
 
-                            for email in self.authenticated_user.clone().unwrap().contacts.keys() {
-                                if let Some(contact) =
-                                    self.authenticated_user.clone().unwrap().contacts.get(email)
+                            for email in self
+                                .authenticated_user
+                                .clone()
+                                .expect("Could not get authenticated user")
+                                .contacts
+                                .keys()
+                            {
+                                if let Some(contact) = self
+                                    .authenticated_user
+                                    .clone()
+                                    .expect("Could not get authenticated user")
+                                    .contacts
+                                    .get(email)
                                 {
-                                    if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                                    if self
+                                        .authenticated_user
+                                        .as_ref()
+                                        .expect("Could not get authenticated user")
+                                        .blp
+                                        == "BL"
                                         && !contact.in_allow_list
                                     {
                                         continue;
@@ -272,7 +351,10 @@ impl NotificationServer {
 
                                 if command[2] != "HDN" {
                                     let nln_command = Chg::convert(
-                                        &self.authenticated_user.as_ref().unwrap(),
+                                        &self
+                                            .authenticated_user
+                                            .as_ref()
+                                            .expect("Could not get authenticated user"),
                                         &message,
                                     );
 
@@ -280,17 +362,22 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: email.clone(),
                                         message: nln_command,
                                     };
 
-                                    self.broadcast_tx.send(thread_message).unwrap();
+                                    self.broadcast_tx
+                                        .send(thread_message)
+                                        .expect("Could not send to broadcast");
                                 } else {
                                     let fln_command = Fln::convert(
-                                        &self.authenticated_user.as_ref().unwrap(),
+                                        &self
+                                            .authenticated_user
+                                            .as_ref()
+                                            .expect("Could not get authenticated user"),
                                         &"".to_string(),
                                     );
 
@@ -298,14 +385,17 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: email.clone(),
                                         message: fln_command,
                                     };
 
-                                    self.broadcast_tx.send(message).unwrap();
+                                    self.broadcast_tx
+                                        .send(message)
+                                        .expect("Could not send to broadcast");
+
                                     continue;
                                 }
 
@@ -314,20 +404,25 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: email.clone(),
                                         message: message.clone(),
                                     };
 
-                                    self.broadcast_tx.send(thread_message).unwrap();
+                                    self.broadcast_tx
+                                        .send(thread_message)
+                                        .expect("Could not send to broadcast");
                                 }
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                             continue;
                         }
@@ -335,28 +430,51 @@ impl NotificationServer {
                 }
 
                 "UUX" => {
-                    let responses = Uux
-                        .handle_with_authenticated_user(
-                            &message,
-                            self.authenticated_user.as_mut().unwrap(),
-                        )
-                        .unwrap();
-                    for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
-                        println!("S: {reply}");
-                    }
+                    match Uux.handle_with_authenticated_user(
+                        &message,
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
+                    ) {
+                        Ok(responses) => {
+                            for reply in responses {
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
 
-                    // Joining command and payload is done beforehand
-                    if let Some(personal_message) = message.lines().nth(1) {
-                        self.authenticated_user.as_mut().unwrap().personal_message =
-                            Some(personal_message.to_string());
-                    }
+                                println!("S: {reply}");
+                            }
+                        }
 
-                    for email in self.authenticated_user.clone().unwrap().contacts.keys() {
-                        if let Some(contact) =
-                            self.authenticated_user.clone().unwrap().contacts.get(email)
+                        Err(err) => {
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
+                            println!("S: {err}");
+                        }
+                    };
+
+                    for email in self
+                        .authenticated_user
+                        .clone()
+                        .expect("Could not get authenticated user")
+                        .contacts
+                        .keys()
+                    {
+                        if let Some(contact) = self
+                            .authenticated_user
+                            .clone()
+                            .expect("Could not get authenticated user")
+                            .contacts
+                            .get(email)
                         {
-                            if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                            if self
+                                .authenticated_user
+                                .as_ref()
+                                .expect("Could not get authenticated user")
+                                .blp
+                                == "BL"
                                 && !contact.in_allow_list
                             {
                                 continue;
@@ -366,8 +484,11 @@ impl NotificationServer {
                                 continue;
                             }
 
-                            if let Some(presence) =
-                                &self.authenticated_user.as_ref().unwrap().presence
+                            if let Some(presence) = &self
+                                .authenticated_user
+                                .as_ref()
+                                .expect("Could not get authenticated user")
+                                .presence
                             {
                                 if presence == "HDN" {
                                     continue;
@@ -375,16 +496,27 @@ impl NotificationServer {
                             }
                         }
 
-                        let ubx_command =
-                            Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                        let ubx_command = Ubx::convert(
+                            self.authenticated_user
+                                .as_ref()
+                                .expect("Could not get authenticated user"),
+                            &message,
+                        );
 
                         let thread_message = Message::ToContact {
-                            sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                            sender: self
+                                .authenticated_user
+                                .as_ref()
+                                .expect("Could not get authenticated user")
+                                .email
+                                .clone(),
                             receiver: email.clone(),
                             message: ubx_command,
                         };
 
-                        self.broadcast_tx.send(thread_message).unwrap();
+                        self.broadcast_tx
+                            .send(thread_message)
+                            .expect("Could not send to broadcast");
                     }
                 }
 
@@ -393,17 +525,25 @@ impl NotificationServer {
 
                     match prp.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -414,17 +554,25 @@ impl NotificationServer {
 
                     match sbp.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -433,7 +581,10 @@ impl NotificationServer {
                 "SDC" => {
                     let responses = Sdc.handle(&message).unwrap();
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
                 }
@@ -443,11 +594,16 @@ impl NotificationServer {
 
                     match adc.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
 
                                 let args: Vec<&str> = reply.trim().split(' ').collect();
@@ -458,24 +614,31 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: contact_email,
                                         message: Adc::convert(
-                                            self.authenticated_user.as_ref().unwrap(),
+                                            self.authenticated_user
+                                                .as_ref()
+                                                .expect("Could not get authenticated user"),
                                             &message,
                                         ),
                                     };
 
-                                    self.broadcast_tx.send(reply).unwrap();
+                                    self.broadcast_tx
+                                        .send(reply)
+                                        .expect("Could not send to broadcast");
                                 }
 
                                 if args[2] == "BL" && args[3].starts_with("N=") {
                                     let contact_email = args[3].replace("N=", "");
 
                                     let fln_command = Fln::convert(
-                                        &self.authenticated_user.as_ref().unwrap(),
+                                        &self
+                                            .authenticated_user
+                                            .as_ref()
+                                            .expect("Could not get authenticated user"),
                                         &message,
                                     );
 
@@ -483,20 +646,25 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: contact_email.clone(),
                                         message: fln_command,
                                     };
 
-                                    self.broadcast_tx.send(message).unwrap();
+                                    self.broadcast_tx
+                                        .send(message)
+                                        .expect("Could not send to broadcast");
                                 }
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -507,11 +675,16 @@ impl NotificationServer {
 
                     match rem.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
 
                                 let args: Vec<&str> = reply.trim().split(' ').collect();
@@ -522,24 +695,31 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: contact_email,
                                         message: Rem::convert(
-                                            self.authenticated_user.as_ref().unwrap(),
+                                            self.authenticated_user
+                                                .as_ref()
+                                                .expect("Could not get authenticated user"),
                                             &message,
                                         ),
                                     };
 
-                                    self.broadcast_tx.send(reply).unwrap();
+                                    self.broadcast_tx
+                                        .send(reply)
+                                        .expect("Could not send to broadcast");
                                 }
 
                                 if args[2] == "BL" {
                                     let contact_email = command[3].to_string();
 
                                     let nln_command = Nln::convert(
-                                        &self.authenticated_user.as_ref().unwrap(),
+                                        &self
+                                            .authenticated_user
+                                            .as_ref()
+                                            .expect("Could not get authenticated user"),
                                         &message,
                                     );
 
@@ -547,14 +727,16 @@ impl NotificationServer {
                                         sender: self
                                             .authenticated_user
                                             .as_ref()
-                                            .unwrap()
+                                            .expect("Could not get authenticated user")
                                             .email
                                             .clone(),
                                         receiver: contact_email,
                                         message: nln_command,
                                     };
 
-                                    self.broadcast_tx.send(thread_message).unwrap();
+                                    self.broadcast_tx
+                                        .send(thread_message)
+                                        .expect("Could not send to broadcast");
                                 }
                             }
                         }
@@ -564,7 +746,10 @@ impl NotificationServer {
                                 return Err("Disconnecting client");
                             }
 
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -575,17 +760,25 @@ impl NotificationServer {
 
                     match adg.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -596,11 +789,16 @@ impl NotificationServer {
 
                     match rmg.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
@@ -610,7 +808,10 @@ impl NotificationServer {
                                 return Err("Disconnecting client");
                             }
 
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -621,17 +822,25 @@ impl NotificationServer {
 
                     match reg.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
 
                         Err(err) => {
-                            wr.write_all(err.as_bytes()).await.unwrap();
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
                             println!("S: {err}");
                         }
                     };
@@ -639,30 +848,56 @@ impl NotificationServer {
 
                 "BLP" => {
                     let mut blp = Blp::new(self.pool.clone());
-                    let responses = blp
-                        .handle_with_authenticated_user(
-                            &message,
-                            self.authenticated_user.as_mut().unwrap(),
-                        )
-                        .unwrap();
+                    let responses = match blp.handle_with_authenticated_user(
+                        &message,
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
+                    ) {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
+                            println!("S: {err}");
+                            continue;
+                        }
+                    };
 
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
                 }
 
                 "GTC" => {
                     let mut gtc = Gtc::new(self.pool.clone());
-                    let responses = gtc
-                        .handle_with_authenticated_user(
-                            &message,
-                            self.authenticated_user.as_mut().unwrap(),
-                        )
-                        .unwrap();
+                    let responses = match gtc.handle_with_authenticated_user(
+                        &message,
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
+                    ) {
+                        Ok(resp) => resp,
+                        Err(err) => {
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
+                            println!("S: {err}");
+                            continue;
+                        }
+                    };
 
                     for reply in responses {
-                        wr.write_all(reply.as_bytes()).await.unwrap();
+                        wr.write_all(reply.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {reply}");
                     }
                 }
@@ -670,7 +905,9 @@ impl NotificationServer {
                 "XFR" => {
                     match Xfr.handle_with_authenticated_user(
                         &message,
-                        self.authenticated_user.as_mut().unwrap(),
+                        self.authenticated_user
+                            .as_mut()
+                            .expect("Could not get authenticated user"),
                     ) {
                         Ok(responses) => {
                             for reply in responses {
@@ -691,23 +928,32 @@ impl NotificationServer {
                                         key: cki_string,
                                         value: session,
                                     })
-                                    .unwrap();
+                                    .expect("Could not send to broadcast");
 
-                                wr.write_all(reply.as_bytes()).await.unwrap();
+                                wr.write_all(reply.as_bytes())
+                                    .await
+                                    .expect("Could not send to client over socket");
+
                                 println!("S: {reply}");
                             }
                         }
 
-                        Err(error) => {
-                            wr.write_all(error.as_bytes()).await.unwrap();
-                            println!("S: {error}");
+                        Err(err) => {
+                            wr.write_all(err.as_bytes())
+                                .await
+                                .expect("Could not send to client over socket");
+
+                            println!("S: {err}");
                         }
                     };
                 }
 
                 "PNG" => {
                     let reply = "QNG 50\r\n";
-                    wr.write_all(reply.as_bytes()).await.unwrap();
+                    wr.write_all(reply.as_bytes())
+                        .await
+                        .expect("Could not send to client over socket");
+
                     println!("S: {reply}");
                 }
 
@@ -746,14 +992,17 @@ impl NotificationServer {
                 if let Some(contact) = self
                     .authenticated_user
                     .as_mut()
-                    .unwrap()
+                    .expect("Could not get authenticated user")
                     .contacts
                     .get_mut(contact)
                 {
                     contact.presence = Some(presence.to_string());
                 }
 
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
@@ -768,14 +1017,17 @@ impl NotificationServer {
                 if let Some(contact) = self
                     .authenticated_user
                     .as_mut()
-                    .unwrap()
+                    .expect("Could not get authenticated user")
                     .contacts
                     .get_mut(contact)
                 {
                     contact.presence = Some(presence.to_string());
                 }
 
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
@@ -785,19 +1037,25 @@ impl NotificationServer {
                 if let Some(contact) = self
                     .authenticated_user
                     .as_mut()
-                    .unwrap()
+                    .expect("Could not get authenticated user")
                     .contacts
                     .get_mut(contact)
                 {
                     contact.presence = None;
                 }
 
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
             "UBX" => {
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
@@ -806,11 +1064,16 @@ impl NotificationServer {
                 if let Some(contact) = self
                     .authenticated_user
                     .clone()
-                    .unwrap()
+                    .expect("Could not get authenticated user")
                     .contacts
                     .get(&sender)
                 {
-                    if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                    if self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .blp
+                        == "BL"
                         && !contact.in_allow_list
                     {
                         return Ok(());
@@ -820,43 +1083,77 @@ impl NotificationServer {
                         return Ok(());
                     }
 
-                    if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
+                    if let Some(presence) = &self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .presence
+                    {
                         if presence == "HDN" {
                             return Ok(());
                         }
                     }
                 }
 
-                let iln_command = Iln::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                let iln_command = Iln::convert(
+                    self.authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user"),
+                    &message,
+                );
 
                 let thread_message = Message::ToContact {
-                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    sender: self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .email
+                        .clone(),
                     receiver: sender.clone(),
                     message: iln_command,
                 };
 
-                self.broadcast_tx.send(thread_message).unwrap();
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
 
-                let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                let ubx_command = Ubx::convert(
+                    self.authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user"),
+                    &message,
+                );
 
                 let thread_message = Message::ToContact {
-                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    sender: self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .email
+                        .clone(),
                     receiver: sender,
                     message: ubx_command,
                 };
 
-                self.broadcast_tx.send(thread_message).unwrap();
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
             }
 
             "ADC" => {
                 if let Some(contact) = self
                     .authenticated_user
                     .clone()
-                    .unwrap()
+                    .expect("Could not get authenticated user")
                     .contacts
                     .get(&sender)
                 {
-                    if self.authenticated_user.as_ref().unwrap().blp == "BL"
+                    if self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .blp
+                        == "BL"
                         && !contact.in_allow_list
                     {
                         return Ok(());
@@ -866,69 +1163,139 @@ impl NotificationServer {
                         return Ok(());
                     }
 
-                    if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
+                    if let Some(presence) = &self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .presence
+                    {
                         if presence == "HDN" {
                             return Ok(());
                         }
                     }
                 }
 
-                let nln_command = Nln::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                let nln_command = Nln::convert(
+                    self.authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user"),
+                    &message,
+                );
 
                 let thread_message = Message::ToContact {
-                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    sender: self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .email
+                        .clone(),
                     receiver: sender.clone(),
                     message: nln_command,
                 };
 
-                self.broadcast_tx.send(thread_message).unwrap();
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
 
-                let ubx_command = Ubx::convert(self.authenticated_user.as_ref().unwrap(), &message);
+                let ubx_command = Ubx::convert(
+                    self.authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user"),
+                    &message,
+                );
 
                 let thread_message = Message::ToContact {
-                    sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                    sender: self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .email
+                        .clone(),
                     receiver: sender,
                     message: ubx_command,
                 };
 
-                self.broadcast_tx.send(thread_message).unwrap();
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
 
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
             "REM" => {
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
             }
 
             "RNG" => {
-                if let Some(presence) = &self.authenticated_user.as_ref().unwrap().presence {
+                if let Some(presence) = &self
+                    .authenticated_user
+                    .as_ref()
+                    .expect("Could not get authenticated user")
+                    .presence
+                {
                     let thread_message = Message::ToContact {
-                        sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        receiver: self.authenticated_user.as_ref().unwrap().email.clone(),
+                        sender: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
+                        receiver: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
                         message: presence.clone(),
                     };
 
-                    self.broadcast_tx.send(thread_message).unwrap();
+                    self.broadcast_tx
+                        .send(thread_message)
+                        .expect("Could not send to broadcast");
 
                     if presence != "HDN" {
-                        wr.write_all(message.as_bytes()).await.unwrap();
+                        wr.write_all(message.as_bytes())
+                            .await
+                            .expect("Could not send to client over socket");
+
                         println!("S: {message}");
                     }
                 } else {
                     let thread_message = Message::ToContact {
-                        sender: self.authenticated_user.as_ref().unwrap().email.clone(),
-                        receiver: self.authenticated_user.as_ref().unwrap().email.clone(),
+                        sender: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
+                        receiver: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
                         message: "None".to_string(),
                     };
 
-                    self.broadcast_tx.send(thread_message).unwrap();
+                    self.broadcast_tx
+                        .send(thread_message)
+                        .expect("Could not send to broadcast");
                 }
             }
 
             "OUT" => {
-                wr.write_all(message.as_bytes()).await.unwrap();
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
+
                 println!("S: {message}");
 
                 return Err("User logged in in another computer");
@@ -940,17 +1307,35 @@ impl NotificationServer {
     }
 
     pub(crate) async fn send_fln_to_contacts(&mut self) {
-        for email in self.authenticated_user.clone().unwrap().contacts.keys() {
-            let fln_command =
-                Fln::convert(&self.authenticated_user.as_ref().unwrap(), &"".to_string());
+        for email in self
+            .authenticated_user
+            .clone()
+            .expect("Could not get authenticated user")
+            .contacts
+            .keys()
+        {
+            let fln_command = Fln::convert(
+                &self
+                    .authenticated_user
+                    .as_ref()
+                    .expect("Could not get authenticated user"),
+                &"".to_string(),
+            );
 
             let message = Message::ToContact {
-                sender: self.authenticated_user.as_ref().unwrap().email.clone(),
+                sender: self
+                    .authenticated_user
+                    .as_ref()
+                    .expect("Could not get authenticated user")
+                    .email
+                    .clone(),
                 receiver: email.clone(),
                 message: fln_command,
             };
 
-            self.broadcast_tx.send(message).unwrap();
+            self.broadcast_tx
+                .send(message)
+                .expect("Could not send to broadcast");
         }
     }
 }

@@ -39,7 +39,7 @@ pub(crate) async fn register(
         );
     }
 
-    let connection = &mut pool.get().unwrap();
+    let connection = &mut pool.get().expect("Could not get connection from pool");
 
     if codes
         .filter(code.eq(&payload.code))
@@ -58,8 +58,9 @@ pub(crate) async fn register(
 
     let password_hash = argon2
         .hash_password(payload.password.as_bytes(), &salt)
-        .unwrap()
+        .expect("Could not hash password")
         .to_string();
+
     let passport_id = OsRng.next_u64();
     let user_guid = guid_create::GUID::rand().to_string().to_lowercase();
 
@@ -74,7 +75,7 @@ pub(crate) async fn register(
             blp.eq(&"AL"),
         ))
         .execute(connection)
-        .unwrap();
+        .expect("Could not insert new user");
 
     (
         StatusCode::OK,

@@ -65,10 +65,13 @@ impl Usr {
 
 impl Command for Usr {
     fn handle(&mut self, command: &String) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let option = args[3];
+
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("500 {tr_id}\r\n"));
+        };
 
         if option == "I" {
             if users

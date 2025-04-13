@@ -28,7 +28,7 @@ impl Rem {
     }
 
     pub fn get_contact_email(&self, contact_guid: &str) -> String {
-        let connection = &mut self.pool.get().unwrap();
+        let connection = &mut self.pool.get().expect("Could not get connection from pool");
         users
             .filter(guid.eq(&contact_guid))
             .select(email)
@@ -43,11 +43,14 @@ impl Command for Rem {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let list = args[2];
         let contact_email = args[3];
+
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -67,11 +70,13 @@ impl Command for Rem {
                 let contact_guid = contact_email;
                 let group_guid = args[4];
 
-                let user_database = users
+                let Ok(user_database) = users
                     .filter(email.eq(&user.email))
                     .select(User::as_select())
                     .get_result(connection)
-                    .unwrap();
+                else {
+                    return Err(format!("603 {tr_id}\r\n"));
+                };
 
                 let Ok(group) = groups
                     .filter(crate::schema::groups::guid.eq(&group_guid))
@@ -95,7 +100,9 @@ impl Command for Rem {
                     .select(GroupMember::as_select())
                     .get_result(connection)
                 {
-                    delete(&member).execute(connection).unwrap();
+                    if delete(&member).execute(connection).is_err() {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
                 } else {
                     return Err(format!("225 {tr_id}\r\n"));
                 }
@@ -106,11 +113,13 @@ impl Command for Rem {
             } else {
                 let contact_guid = contact_email;
 
-                let user_database = users
+                let Ok(user_database) = users
                     .filter(email.eq(&user.email))
                     .select(User::as_select())
                     .get_result(connection)
-                    .unwrap();
+                else {
+                    return Err(format!("603 {tr_id}\r\n"));
+                };
 
                 if let Ok(contact) = Contact::belonging_to(&user_database)
                     .inner_join(users.on(id.eq(crate::schema::contacts::contact_id)))
@@ -123,16 +132,21 @@ impl Command for Rem {
                         return Err(format!("216 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_forward_list.eq(&forward_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
-                    let contact_email: String = users
+                    let Ok(contact_email) = users
                         .filter(id.eq(&contact.contact_id))
                         .select(email)
-                        .get_result(connection)
-                        .unwrap();
+                        .get_result::<String>(connection)
+                    else {
+                        return Err(format!("201 {tr_id}\r\n"));
+                    };
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
                         contact.in_forward_list = forward_list;
@@ -144,11 +158,13 @@ impl Command for Rem {
                 return Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")]);
             }
         } else {
-            let user_database = users
+            let Ok(user_database) = users
                 .filter(email.eq(&user.email))
                 .select(User::as_select())
                 .get_result(connection)
-                .unwrap();
+            else {
+                return Err(format!("603 {tr_id}\r\n"));
+            };
 
             if let Ok(contact) = Contact::belonging_to(&user_database)
                 .inner_join(users.on(id.eq(crate::schema::contacts::contact_id)))
@@ -162,10 +178,13 @@ impl Command for Rem {
                         return Err(format!("216 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_allow_list.eq(&allow_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
                     if let Some(contact) = user.contacts.get_mut(contact_email) {
                         contact.in_allow_list = allow_list;
@@ -178,10 +197,13 @@ impl Command for Rem {
                         return Err(format!("216 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_block_list.eq(&block_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
                     if let Some(contact) = user.contacts.get_mut(contact_email) {
                         contact.in_block_list = block_list;

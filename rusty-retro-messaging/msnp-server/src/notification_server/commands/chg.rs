@@ -26,7 +26,12 @@ impl Command for Chg {
         }
 
         user.presence = Some(args[2].to_string());
-        user.client_id = Some(args[3].parse().unwrap());
+
+        let Ok(client_id) = args[3].parse() else {
+            return Err(format!("201 {tr_id}\r\n"));
+        };
+
+        user.client_id = Some(client_id);
         user.msn_object = if args.len() > 4 {
             Some(args[4].to_string())
         } else {
@@ -43,8 +48,8 @@ impl BroadcastedCommand for Chg {
         args.next();
         args.next();
 
-        let presence = args.next().unwrap();
-        let client_id = args.next().unwrap();
+        let presence = args.next().expect("CHG to be converted has no presence");
+        let client_id = args.next().expect("CHG to be converted has no client id");
         let mut msn_object = String::from("");
 
         if let Some(object) = args.next() {

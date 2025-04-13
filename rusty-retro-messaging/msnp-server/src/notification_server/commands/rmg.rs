@@ -27,20 +27,25 @@ impl Command for Rmg {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_guid = args[2];
+
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         if group_guid == "0" {
             return Err(format!("230 {tr_id}\r\n"));
         }
 
-        let user_database = users
+        let Ok(user_database) = users
             .filter(email.eq(&user.email))
             .select(User::as_select())
             .get_result(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         if let Ok(group) = Group::belonging_to(&user_database)
             .filter(guid.eq(&group_guid))
@@ -55,7 +60,9 @@ impl Command for Rmg {
             {
                 return Err(format!("226 {tr_id}\r\n"));
             } else {
-                delete(&group).execute(connection).unwrap();
+                if delete(&group).execute(connection).is_err() {
+                    return Err(format!("603 {tr_id}\r\n"));
+                }
             }
             return Ok(vec![format!("RMG {tr_id} 1 {group_guid}\r\n")]);
         } else {

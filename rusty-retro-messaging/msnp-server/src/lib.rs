@@ -28,10 +28,13 @@ pub async fn listen() {
         .build(manager)
         .expect("Could not build connection pool");
 
-    let notification_server_listener = TcpListener::bind("0.0.0.0:1863").await.unwrap();
+    let notification_server_listener = TcpListener::bind("0.0.0.0:1863")
+        .await
+        .expect("Could not bind Notification Server");
+
     let switchboard_listener = TcpListener::bind(format!("0.0.0.0:{switchboard_port}"))
         .await
-        .unwrap();
+        .expect("Could not bind Switchboard");
 
     let (tx, mut rx) = broadcast::channel::<Message>(16);
 
@@ -46,7 +49,14 @@ pub async fn listen() {
     loop {
         tokio::select! {
             client = notification_server_listener.accept() => {
-                let (mut socket, _) = client.unwrap();
+                let (mut socket, _) = match client {
+                    Ok(c) => c,
+                    Err(error) => {
+                        eprintln!("Could not get socket from accepted Notification Server connection: {error}");
+                        continue;
+                    }
+                };
+
                 let pool = pool.clone();
                 let tx = tx.clone();
 
@@ -57,12 +67,16 @@ pub async fn listen() {
                             eprintln!("{error}");
 
                             if connection.authenticated_user.is_some() {
-                                connection.broadcast_tx.send(Message::RemoveUser).unwrap();
+                                if let Err(error) = connection.broadcast_tx.send(Message::RemoveUser) {
+                                    eprintln!("Could not remove user from count: {error}");
+                                }
                             }
 
                             if error != "User logged in in another computer" {
                                 if let Some(ref user) = connection.authenticated_user {
-                                    connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())).unwrap();
+                                    if let Err(error) = connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())) {
+                                        eprintln!("Could not remove user tx: {error}");
+                                    }
                                     connection.send_fln_to_contacts().await;
                                 }
                             }
@@ -73,7 +87,14 @@ pub async fn listen() {
             }
 
             client = switchboard_listener.accept() => {
-                let (mut socket, _) = client.unwrap();
+                let (mut socket, _) = match client {
+                    Ok(c) => c,
+                    Err(error) => {
+                        eprintln!("Could not get socket from accepted Switchboard connection: {error}");
+                        continue;
+                    }
+                };
+
                 let pool = pool.clone();
                 let tx = tx.clone();
 
@@ -84,7 +105,9 @@ pub async fn listen() {
                             eprintln!("{error}");
 
                             if let Some(ref session) = connection.session {
-                                connection.broadcast_tx.send(Message::RemoveSession(session.session_id.clone())).unwrap();
+                                if let Err(error) = connection.broadcast_tx.send(Message::RemoveSession(session.session_id.clone())) {
+                                    eprintln!("Could not remove session: {error}");
+                                }
                                 connection.send_bye_to_principals(false).await;
                             }
                             break;
@@ -94,12 +117,19 @@ pub async fn listen() {
             }
 
             message = rx.recv() => {
-                let message = message.unwrap();
+                let message = match message {
+                    Ok(m) => m,
+                    Err(error) => {
+                        eprintln!("Could not receive message from thread: {error}");
+                        continue;
+                    }
+                };
+
                 match message {
                     Message::GetTx(key) => {
                         let contact_tx = channels.get(&key);
-                        if tx.send(Message::Tx { key: key.clone(), value: contact_tx.cloned() }).is_err() {
-                            println!("Error sending tx to {}", key);
+                        if let Err(error) = tx.send(Message::Tx { key: key.clone(), value: contact_tx.cloned() }) {
+                            eprintln!("Could not send tx to {key}: {error}");
                         }
                     }
 
@@ -114,16 +144,16 @@ pub async fn listen() {
                     Message::ToContact { receiver, sender, message } => {
                         let tx = channels.get(&receiver);
                         if let Some(tx) = tx {
-                            if tx.send(Message::ToContact { sender: sender, receiver: receiver.clone(), message: message }).is_err() {
-                                println!("Error sending to {}", receiver);
+                            if let Err(error) = tx.send(Message::ToContact { sender: sender, receiver: receiver.clone(), message: message }) {
+                                eprintln!("Could not send message to {receiver}: {error}");
                             }
                         }
                     }
 
                     Message::GetSession(key) => {
                         let session = sessions.get(&key);
-                        if tx.send(Message::Session { key: key.clone(), value: session.cloned() }).is_err() {
-                            println!("Error sending session to {}", key);
+                        if let Err(error) = tx.send(Message::Session { key: key.clone(), value: session.cloned() }) {
+                            eprintln!("Could not send session to {key}: {error}");
                         }
                     }
 
@@ -136,8 +166,8 @@ pub async fn listen() {
                     }
 
                     Message::GetUsers => {
-                        if tx.send(Message::UserCount(user_count)).is_err() {
-                            println!("Error sending user count");
+                        if let Err(error) = tx.send(Message::UserCount(user_count)) {
+                            eprintln!("Could not send user count: {error}");
                         }
                     }
 

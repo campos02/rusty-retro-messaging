@@ -25,18 +25,23 @@ impl Command for Reg {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_guid = args[2];
         let new_name = args[3];
         let number = args[4];
 
-        let user_database = users
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
+        let Ok(user_database) = users
             .filter(email.eq(&user.email))
             .select(User::as_select())
             .get_result(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         if let Ok(group) = Group::belonging_to(&user_database)
             .filter(guid.eq(&group_guid))
@@ -52,10 +57,13 @@ impl Command for Reg {
                 return Err(format!("228 {tr_id}\r\n"));
             }
 
-            diesel::update(&group)
+            if diesel::update(&group)
                 .set(name.eq(&new_name))
                 .execute(connection)
-                .unwrap();
+                .is_err()
+            {
+                return Err(format!("603 {tr_id}\r\n"));
+            }
 
             return Ok(vec![format!(
                 "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"

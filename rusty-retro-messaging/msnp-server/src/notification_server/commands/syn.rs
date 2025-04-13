@@ -38,12 +38,22 @@ impl Syn {
 
 impl Command for Syn {
     fn handle(&mut self, command: &String) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
-        let user = users
+        let args: Vec<&str> = command.trim().split(' ').collect();
+        let tr_id = args[1];
+        let first_timestap = args[2];
+        let second_timestamp = args[3];
+
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
+
+        let Ok(user) = users
             .filter(email.eq(&self.authenticated_user.email))
             .select(User::as_select())
             .get_result(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         let gtc = &user.gtc;
         let mut responses = vec![format!("GTC {gtc}\r\n")];
@@ -56,10 +66,12 @@ impl Command for Syn {
         self.authenticated_user.display_name = display_name.clone();
         responses.push(format!("PRP MFN {display_name}\r\n"));
 
-        let user_groups = Group::belonging_to(&user)
+        let Ok(user_groups) = Group::belonging_to(&user)
             .select(Group::as_select())
             .load(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         let number_of_groups = user_groups.len();
         for group in &user_groups {
@@ -68,10 +80,12 @@ impl Command for Syn {
             responses.push(format!("LSG {name} {guid}\r\n"));
         }
 
-        let user_contacts = Contact::belonging_to(&user)
+        let Ok(user_contacts) = Contact::belonging_to(&user)
             .select(Contact::as_select())
             .load(connection)
-            .unwrap();
+        else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         let number_of_contacts = user_contacts.len();
         for contact in user_contacts {
@@ -154,11 +168,6 @@ impl Command for Syn {
                 "LST N={contact_email} F={display_name} C={guid} {listbit} {group_list}\r\n"
             ));
         }
-
-        let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let first_timestap = args[2];
-        let second_timestamp = args[3];
 
         responses.insert(0, format!("SYN {tr_id} {first_timestap} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));
         Ok(responses)

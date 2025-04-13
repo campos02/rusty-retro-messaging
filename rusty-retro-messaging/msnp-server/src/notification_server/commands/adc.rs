@@ -40,11 +40,14 @@ impl Command for Adc {
         command: &String,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, String> {
-        let connection = &mut self.pool.get().unwrap();
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let list = args[2];
         let contact_email = args[3];
+
+        let Ok(connection) = &mut self.pool.get() else {
+            return Err(format!("603 {tr_id}\r\n"));
+        };
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -64,11 +67,13 @@ impl Command for Adc {
                 return Err(format!("201 {tr_id}\r\n"));
             }
 
-            let user_database = users
+            let Ok(user_database) = users
                 .filter(email.eq(&user.email))
                 .select(User::as_select())
                 .get_result(connection)
-                .unwrap();
+            else {
+                return Err(format!("603 {tr_id}\r\n"));
+            };
 
             let Ok(contact_user) = users
                 .filter(email.eq(&contact_email))
@@ -89,10 +94,13 @@ impl Command for Adc {
                         return Err(format!("215 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_forward_list.eq(&forward_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
                         contact.in_forward_list = forward_list;
@@ -102,10 +110,13 @@ impl Command for Adc {
                         return Err(format!("215 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_allow_list.eq(&allow_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
                         contact.in_allow_list = allow_list;
@@ -115,10 +126,13 @@ impl Command for Adc {
                         return Err(format!("215 {tr_id}\r\n"));
                     }
 
-                    diesel::update(&contact)
+                    if diesel::update(&contact)
                         .set(in_block_list.eq(&block_list))
                         .execute(connection)
-                        .unwrap();
+                        .is_err()
+                    {
+                        return Err(format!("603 {tr_id}\r\n"));
+                    }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
                         contact.in_block_list = block_list;
@@ -131,7 +145,7 @@ impl Command for Adc {
                     contact_email.clone()
                 };
 
-                insert_into(contacts)
+                if insert_into(contacts)
                     .values((
                         user_id.eq(&user_database.id),
                         crate::schema::contacts::contact_id.eq(&contact_user.id),
@@ -141,7 +155,10 @@ impl Command for Adc {
                         in_block_list.eq(block_list),
                     ))
                     .execute(connection)
-                    .unwrap();
+                    .is_err()
+                {
+                    return Err(format!("603 {tr_id}\r\n"));
+                }
 
                 user.contacts.insert(
                     contact_email.clone(),
@@ -173,11 +190,13 @@ impl Command for Adc {
             let contact_display_name = args[4].replace("F=", "");
             let group_guid = contact_display_name.replace("C=", "");
 
-            let user_database = users
+            let Ok(user_database) = users
                 .filter(email.eq(&user.email))
                 .select(User::as_select())
                 .get_result(connection)
-                .unwrap();
+            else {
+                return Err(format!("603 {tr_id}\r\n"));
+            };
 
             let Ok(group) = groups
                 .filter(crate::schema::groups::guid.eq(&group_guid))
@@ -204,13 +223,16 @@ impl Command for Adc {
             {
                 return Err(format!("215 {tr_id}\r\n"));
             } else {
-                insert_into(group_members)
+                if insert_into(group_members)
                     .values((
                         group_id.eq(&group.id),
                         crate::schema::group_members::contact_id.eq(&contact.id),
                     ))
                     .execute(connection)
-                    .unwrap();
+                    .is_err()
+                {
+                    return Err(format!("603 {tr_id}\r\n"));
+                }
             }
 
             return Ok(vec![format!(

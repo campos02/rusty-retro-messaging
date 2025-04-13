@@ -7,7 +7,9 @@ pub(crate) async fn stats(
     State(broadcast_tx): State<broadcast::Sender<Message>>,
 ) -> impl IntoResponse {
     let mut broadcast_rx = broadcast_tx.subscribe();
-    broadcast_tx.send(Message::GetUsers).unwrap();
+    broadcast_tx
+        .send(Message::GetUsers)
+        .expect("Could not send GetUsers Message");
 
     let mut user_count: u32 = 0;
     while let Ok(message) = broadcast_rx.recv().await {

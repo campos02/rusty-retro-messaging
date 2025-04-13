@@ -15,10 +15,10 @@ impl BroadcastedCommand for Iln {
         }
 
         let tr_id = args[1];
-        let presence = &user.presence.as_ref().unwrap();
+        let presence = &user.presence.as_ref().expect("User has no presence set");
         let email = &user.email;
         let display_name = &user.display_name;
-        let client_id = &user.client_id.unwrap();
+        let client_id = &user.client_id.expect("User has no client id set");
         format!("ILN {tr_id} {presence} {email} {display_name} {client_id}{msn_object}\r\n")
     }
 }
