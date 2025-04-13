@@ -18,6 +18,7 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
 };
 use diesel::{QueryDsl, SelectableHelper};
+use email_address::EmailAddress;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -39,7 +40,26 @@ pub(crate) async fn register(
         );
     }
 
+    if !EmailAddress::is_valid(&payload.email.as_str()) {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(String::from("Invalid email address")),
+        );
+    }
+
     let connection = &mut pool.get().expect("Could not get connection from pool");
+
+    if users
+        .filter(email.eq(&payload.email))
+        .select(email)
+        .get_result::<String>(connection)
+        .is_ok()
+    {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(String::from("User already registered")),
+        );
+    }
 
     if codes
         .filter(code.eq(&payload.code))

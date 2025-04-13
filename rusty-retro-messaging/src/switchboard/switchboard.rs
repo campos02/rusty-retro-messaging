@@ -2,7 +2,7 @@ use crate::{
     Message,
     models::transient::{authenticated_user::AuthenticatedUser, principal::Principal},
     switchboard::{
-        commands::{command::Command, joi::Joi, rng::Rng, usr::Usr},
+        commands::{bye::Bye, command::Command, joi::Joi, rng::Rng, usr::Usr},
         session::Session,
     },
 };
@@ -17,8 +17,6 @@ use tokio::{
     net::{TcpStream, tcp::WriteHalf},
     sync::broadcast,
 };
-
-use super::commands::bye::Bye;
 
 pub struct Switchboard {
     pool: Pool<ConnectionManager<MysqlConnection>>,
