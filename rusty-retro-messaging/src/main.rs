@@ -32,15 +32,16 @@ async fn main() {
         .await
         .expect("Could not bind Notification Server");
 
+    println!("Notification Server listening on port 1863");
+
     let switchboard_listener = TcpListener::bind(format!("0.0.0.0:{switchboard_port}"))
         .await
         .expect("Could not bind Switchboard");
 
-    let (tx, mut rx) = broadcast::channel::<Message>(16);
+    println!("Switchboard listening on port {switchboard_port}");
 
-    println!("Listening on port 1863");
+    let (tx, mut rx) = broadcast::channel::<Message>(16);
     tokio::spawn(http::listen(pool.clone(), tx.clone()));
-    println!("Listening for HTTP on port 3000");
 
     let mut channels: HashMap<String, broadcast::Sender<Message>> = HashMap::new();
     let mut sessions: HashMap<String, Session> = HashMap::new();

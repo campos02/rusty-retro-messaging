@@ -46,7 +46,9 @@ pub async fn listen(
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
-        .expect("Could bind HTTP server");
+        .expect("Could not bind HTTP server");
+
+    println!("HTTP server listening on port 3000");
 
     loop {
         let (socket, _remote_addr) = match listener.accept().await {
