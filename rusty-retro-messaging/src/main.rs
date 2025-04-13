@@ -16,8 +16,8 @@ mod notification_server;
 pub mod schema;
 mod switchboard;
 
-/// Starts the MSNP and HTTP servers
-pub async fn listen() {
+#[tokio::main]
+async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let switchboard_port = env::var("SWITCHBOARD_PORT").expect("SWITCHBOARD_PORT not set");
