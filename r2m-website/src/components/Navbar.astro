@@ -1,13 +1,18 @@
 ---
 const backendName = import.meta.env.BACKEND_NAME;
-const response = await fetch(`https://${backendName}/_r2m/stats`);
-const data = await response.json();
 let users = "0 users";
 
-if (data.users == 1) {
-    users = "1 user";
-} else {
-    users = `${data.users} users`;
+try {
+    const response = await fetch(`https://${backendName}/_r2m/stats`);
+    const data = await response.json();
+
+    if (data.users == 1) {
+        users = "1 user";
+    } else {
+        users = `${data.users} users`;
+    }
+} catch(error) {
+    console.log(error);
 }
 ---
 <nav class="actions">
