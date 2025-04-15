@@ -16,6 +16,7 @@ import Layout from "../layouts/Layout.astro";
         <p id="result"/>
         <script>
             import { actions } from 'astro:actions';
+            import { navigate } from 'astro:transitions/client';
 
             const form = document.querySelector('form');
             form?.addEventListener('submit', async (event) => {
@@ -25,9 +26,9 @@ import Layout from "../layouts/Layout.astro";
                 const resultText = document.getElementById("result");
 
                 if (!error)
-                    resultText.innerText = "User registered successfully";
+                    navigate('/success');
                 else
-                    resultText.innerText = `Unable to register: ${error.message} - ${error.code}`;
+                    resultText.innerText = `Unable to register: ${error.message}`;
             });
         </script>
 	</main>

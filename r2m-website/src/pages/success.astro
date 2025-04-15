@@ -1,0 +1,26 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+<Layout title="Success">
+	<main>
+		<p>User registered sucessfully!</p>
+	</main>
+	<style>
+		main {
+            display: grid;
+            grid-template-rows: repeat(2, auto) 1rem;
+            place-self: start center;
+            padding: 1rem 15rem 2rem 15rem;
+        }
+
+        p {
+            text-align: center;
+        }
+
+		@media (max-width: 1380px) {
+			main {
+				padding: 1rem 2rem 2rem 2rem;
+			}
+		}
+	</style>
+</Layout>
