@@ -11,7 +11,7 @@ export const server = {
       code: z.string(),
     }),
     handler: async ({ email, password, password_confirmation, code }) => {
-      const backendName = import.meta.env.BACKEND_NAME;
+      const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
       const response = await fetch(`https://${backendName}/_r2m/register`, {
         method: "POST",
         headers: {
