@@ -4,7 +4,7 @@ services:
       context: ./r2m-website
       args:
         - WEBSITE_URL=$FRONTEND_URL
-        - BACKEND_NAME=$SERVER_NAME
+        - BACKEND_NAME=$BACKEND_NAME
     depends_on:
       - r2m
     networks:
@@ -13,7 +13,7 @@ services:
     build: ./rusty-retro-messaging
     environment:
       DATABASE_URL: ${DATABASE_URL}
-      SERVER_NAME: ${SERVER_NAME}
+      SERVER_NAME: ${BACKEND_NAME}
       SWITCHBOARD_IP: ${SWITCHBOARD_IP}
       FRONTEND_URL: ${FRONTEND_URL}
     depends_on:
