@@ -1,9 +1,10 @@
 services:
   r2m-website:
-    build: ./r2m-website
-    environment:
-      WEBSITE_URL: ${FRONTEND_URL}
-      BACKEND_NAME: ${SERVER_NAME}
+    build:
+      context: ./r2m-website
+      args:
+        - WEBSITE_URL=$FRONTEND_URL
+        - BACKEND_NAME=$SERVER_NAME
     depends_on:
       - r2m
     networks:
