@@ -20,7 +20,6 @@ mod switchboard;
 async fn main() {
     dotenv().ok();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let switchboard_port = env::var("SWITCHBOARD_PORT").expect("SWITCHBOARD_PORT not set");
 
     let manager = ConnectionManager::<MysqlConnection>::new(database_url);
     let pool = Pool::builder()
@@ -34,11 +33,11 @@ async fn main() {
 
     println!("Notification Server listening on port 1863");
 
-    let switchboard_listener = TcpListener::bind(format!("0.0.0.0:{switchboard_port}"))
+    let switchboard_listener = TcpListener::bind("0.0.0.0:1864")
         .await
         .expect("Could not bind Switchboard");
 
-    println!("Switchboard listening on port {switchboard_port}");
+    println!("Switchboard listening on port 1864");
 
     let (tx, mut rx) = broadcast::channel::<Message>(16);
     tokio::spawn(http::listen(pool.clone(), tx.clone()));

@@ -1,0 +1,43 @@
+services:
+  r2m-website:
+    build: ./r2m-website
+    environment:
+      WEBSITE_URL: ${FRONTEND_URL}
+      BACKEND_NAME: ${SERVER_NAME}
+    depends_on:
+      - r2m
+    networks:
+      - r2m
+  r2m:
+    build: ./rusty-retro-messaging
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      SERVER_NAME: ${SERVER_NAME}
+      SWITCHBOARD_IP: ${SWITCHBOARD_IP}
+      FRONTEND_URL: ${FRONTEND_URL}
+    depends_on:
+      - r2m-db
+    networks:
+      - r2m
+    ports:
+      - 1863:1863
+      - 1864:1864
+  r2m-db:
+    image: mariadb
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_PASSWORD}
+      MARIADB_DATABASE: ${DB_DATABASE}
+      MARIADB_USER: ${DB_USERNAME}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - r2m-db-data:/var/lib/mysql
+      - ./mariadb:/etc/mysql/conf.d/
+    networks:
+      - r2m
+
+networks:
+  r2m:
+    driver: bridge
+
+volumes:
+  r2m-db-data:

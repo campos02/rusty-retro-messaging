@@ -29,11 +29,10 @@ impl Command for Xfr {
         }
 
         let switchboard_ip = env::var("SWITCHBOARD_IP").expect("SWITCHBOARD_IP not set");
-        let switchboard_port = env::var("SWITCHBOARD_PORT").expect("SWITCHBOARD_PORT not set");
         let cki_string = Alphanumeric.sample_string(&mut rand::rng(), 16);
 
         Ok(vec![format!(
-            "XFR {tr_id} SB {switchboard_ip}:{switchboard_port} CKI {cki_string}\r\n"
+            "XFR {tr_id} SB {switchboard_ip}:1864 CKI {cki_string}\r\n"
         )])
     }
 }
