@@ -1,6 +1,7 @@
 ---
 const { title } = Astro.props;
 import Navbar from "../components/Navbar.astro";
+import ZeroUsersNavbar from "../components/ZeroUsersNavbar.astro";
 const websiteUrl = import.meta.env.WEBSITE_URL;
 ---
 <html lang="en">
@@ -15,7 +16,9 @@ const websiteUrl = import.meta.env.WEBSITE_URL;
         <title>{title}</title>
 	</head>
 	<body>
-        <Navbar/>
+        <Navbar server:defer>
+            <ZeroUsersNavbar slot="fallback"/>
+        </Navbar>
         <slot />
 	</body>
     <style>
