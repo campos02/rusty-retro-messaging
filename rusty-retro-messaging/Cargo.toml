@@ -23,3 +23,5 @@ rand = { version = "0.9.0", features = ["alloc"] }
 base64 = "0.22.1"
 tower-http = { version = "0.6.2", features = ["cors"] }
 email_address = "0.2.9"
+axum-serde = { version = "0.8.1", features = ["xml"] }
+quick-xml = { version = "0.37.4", features = ["serialize"] }

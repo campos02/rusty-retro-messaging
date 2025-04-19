@@ -2,6 +2,7 @@ use crate::message::Message;
 use axum::{
     Router,
     http::HeaderValue,
+    middleware,
     routing::{get, post},
 };
 use diesel::{
@@ -18,9 +19,12 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
+mod content_type_xml;
 mod login_server;
 mod nexus;
 mod register;
+mod rst;
+mod rst_xml;
 mod stats;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
@@ -42,6 +46,10 @@ pub async fn listen(
         .layer(cors)
         .route("/rdr/pprdr.asp", get(nexus::nexus))
         .route("/login.srf", get(login_server::login_server))
+        .route(
+            "/RST.srf",
+            post(rst::rst).layer(middleware::from_fn(content_type_xml::content_type_xml)),
+        )
         .with_state(pool);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
@@ -58,6 +66,7 @@ pub async fn listen(
                 continue;
             }
         };
+
         let tower_service = app.clone();
 
         tokio::spawn(async move {
