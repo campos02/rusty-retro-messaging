@@ -41,6 +41,8 @@ enum ElementNotFoundError {
     SecurityNotFound,
     UsernameTokenNotFound,
     RequestMultipleSecurityTokensNotFound,
+    PolicyReferenceNotFound,
+    UriNotFound,
 }
 
 pub(crate) async fn rst(
@@ -214,6 +216,24 @@ pub(crate) async fn rst(
             }
 
             "messenger.msn.com" => {
+                if let Ok(uri) = security_token
+                    .policy_reference
+                    .as_ref()
+                    .ok_or_else(|| ElementNotFoundError::PolicyReferenceNotFound)
+                    .and_then(|policy_reference| {
+                        policy_reference
+                            .uri
+                            .as_ref()
+                            .ok_or_else(|| ElementNotFoundError::UriNotFound)
+                    })
+                {
+                    if uri != "?ct=1&rver=1&wp=FS_40SEC_0_COMPACT&lc=1&id=1" {
+                        return failed_authentication_envelope();
+                    }
+                } else {
+                    return failed_authentication_envelope();
+                }
+
                 request_security_token_response.push(RequestSecurityTokenResponse {
                     token_type: Some("urn:passport:compat".to_string()),
                     applies_to: Some(AppliesTo {
