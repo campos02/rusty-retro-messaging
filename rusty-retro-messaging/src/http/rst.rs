@@ -1,4 +1,4 @@
-use super::rst_xml::{
+use super::xml::rst_xml::{
     ds::{KeyInfo, KeyInfoTypeContent, XmlnsDsOpenEnumType},
     psf::{self, Pp, XmlnsPsfOpenEnumType},
     tns::{self, EndpointReference, Envelope, Fault, Header, XmlnsSOpenEnumType},

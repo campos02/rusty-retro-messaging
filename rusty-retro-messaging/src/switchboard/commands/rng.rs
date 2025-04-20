@@ -1,9 +1,5 @@
 use super::command::Command;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use std::env;
 
 pub struct Rng {
@@ -13,13 +9,13 @@ pub struct Rng {
 
 impl Command for Rng {
     fn generate(
-        &mut self,
-        pool: Pool<ConnectionManager<MysqlConnection>>,
+        &self,
+        protocol_version: usize,
         user: &mut AuthenticatedUser,
         tr_id: &str,
     ) -> String {
+        let _ = protocol_version;
         let _ = tr_id;
-        let _ = pool;
 
         let session_id = &self.session_id;
         let switchboard_ip = env::var("SWITCHBOARD_IP").expect("SWITCHBOARD_IP not set");

@@ -27,7 +27,7 @@ pub struct NotificationServer {
     pub broadcast_tx: broadcast::Sender<Message>,
     contact_rx: Option<broadcast::Receiver<Message>>,
     pub authenticated_user: Option<AuthenticatedUser>,
-    protocol_version: Option<String>,
+    protocol_version: Option<usize>,
 }
 
 impl NotificationServer {
@@ -131,7 +131,7 @@ impl NotificationServer {
             if self.protocol_version.is_none() {
                 match command[0] {
                     "VER" => {
-                        let responses = match Ver.handle(&message) {
+                        let responses = match Ver.handle(0, &message) {
                             Ok(r) => r,
                             Err(err) => {
                                 wr.write_all(err.as_bytes())
@@ -152,7 +152,12 @@ impl NotificationServer {
 
                             let args: Vec<&str> = reply.trim().split(' ').collect();
                             if args[0] == "VER" {
-                                self.protocol_version = Some(args[2].to_string());
+                                self.protocol_version = Some(
+                                    args[2]
+                                        .replace("MSNP", "")
+                                        .parse::<usize>()
+                                        .expect("Could not get protocol version"),
+                                );
                             }
                         }
                     }
@@ -164,7 +169,14 @@ impl NotificationServer {
             if self.authenticated_user.is_none() {
                 match command[0] {
                     "CVR" => {
-                        let responses = Cvr.handle(&message).unwrap();
+                        let responses = Cvr
+                            .handle(
+                                self.protocol_version
+                                    .expect("Could not get protocol version"),
+                                &message,
+                            )
+                            .expect("Could not handle CVR");
+
                         for reply in responses {
                             wr.write_all(reply.as_bytes())
                                 .await
@@ -176,7 +188,11 @@ impl NotificationServer {
 
                     "USR" => {
                         let mut usr = Usr::new(self.pool.clone());
-                        let responses = match usr.handle(&message) {
+                        let responses = match usr.handle(
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
+                            &message,
+                        ) {
                             Ok(r) => r,
                             Err(err) => {
                                 wr.write_all(err.as_bytes())
@@ -200,7 +216,10 @@ impl NotificationServer {
                                     .send(Message::AddUser)
                                     .expect("Could not send to broadcast");
 
-                                let user_email = usr.get_user_email().unwrap();
+                                let user_email = usr
+                                    .get_user_email()
+                                    .expect("Could not get user email from USR");
+
                                 self.authenticated_user =
                                     Some(AuthenticatedUser::new(user_email.clone()));
 
@@ -252,7 +271,11 @@ impl NotificationServer {
                             .clone(),
                     );
 
-                    let responses = match syn.handle(&message) {
+                    let responses = match syn.handle(
+                        self.protocol_version
+                            .expect("Could not get protocol version"),
+                        &message,
+                    ) {
                         Ok(resp) => resp,
                         Err(err) => {
                             wr.write_all(err.as_bytes())
@@ -276,7 +299,14 @@ impl NotificationServer {
                 }
 
                 "GCF" => {
-                    let responses = Gcf.handle(&message).unwrap();
+                    let responses = Gcf
+                        .handle(
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
+                            &message,
+                        )
+                        .expect("Could not handle GCF");
+
                     for reply in responses {
                         wr.write_all(reply.as_bytes())
                             .await
@@ -287,7 +317,13 @@ impl NotificationServer {
                 }
 
                 "URL" => {
-                    let responses = Url.handle(&message).unwrap();
+                    let responses = Url
+                        .handle(
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
+                            &message,
+                        )
+                        .expect("Could not handle URL");
                     for reply in responses {
                         wr.write_all(reply.as_bytes())
                             .await
@@ -579,7 +615,14 @@ impl NotificationServer {
                 }
 
                 "SDC" => {
-                    let responses = Sdc.handle(&message).unwrap();
+                    let responses = Sdc
+                        .handle(
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
+                            &message,
+                        )
+                        .expect("Could not handle SDC");
+
                     for reply in responses {
                         wr.write_all(reply.as_bytes())
                             .await
@@ -979,7 +1022,7 @@ impl NotificationServer {
             message,
         } = message
         else {
-            return Err("Message type must be ToContact");
+            return Ok(());
         };
 
         println!("Thread {}: {message}", sender);
@@ -1235,60 +1278,11 @@ impl NotificationServer {
             }
 
             "RNG" => {
-                if let Some(presence) = &self
-                    .authenticated_user
-                    .as_ref()
-                    .expect("Could not get authenticated user")
-                    .presence
-                {
-                    let thread_message = Message::ToContact {
-                        sender: self
-                            .authenticated_user
-                            .as_ref()
-                            .expect("Could not get authenticated user")
-                            .email
-                            .clone(),
-                        receiver: self
-                            .authenticated_user
-                            .as_ref()
-                            .expect("Could not get authenticated user")
-                            .email
-                            .clone(),
-                        message: presence.clone(),
-                    };
+                wr.write_all(message.as_bytes())
+                    .await
+                    .expect("Could not send to client over socket");
 
-                    self.broadcast_tx
-                        .send(thread_message)
-                        .expect("Could not send to broadcast");
-
-                    if presence != "HDN" {
-                        wr.write_all(message.as_bytes())
-                            .await
-                            .expect("Could not send to client over socket");
-
-                        println!("S: {message}");
-                    }
-                } else {
-                    let thread_message = Message::ToContact {
-                        sender: self
-                            .authenticated_user
-                            .as_ref()
-                            .expect("Could not get authenticated user")
-                            .email
-                            .clone(),
-                        receiver: self
-                            .authenticated_user
-                            .as_ref()
-                            .expect("Could not get authenticated user")
-                            .email
-                            .clone(),
-                        message: "None".to_string(),
-                    };
-
-                    self.broadcast_tx
-                        .send(thread_message)
-                        .expect("Could not send to broadcast");
-                }
+                println!("S: {message}");
             }
 
             "OUT" => {
@@ -1297,8 +1291,25 @@ impl NotificationServer {
                     .expect("Could not send to client over socket");
 
                 println!("S: {message}");
-
                 return Err("User logged in in another computer");
+            }
+
+            "GetUserDetails" => {
+                let thread_message = Message::SendUserDetails {
+                    sender: self
+                        .authenticated_user
+                        .as_ref()
+                        .expect("Could not get authenticated user")
+                        .email
+                        .clone(),
+                    receiver: sender,
+                    authenticated_user: self.authenticated_user.clone(),
+                    protocol_version: self.protocol_version,
+                };
+
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
             }
             _ => (),
         };

@@ -37,7 +37,7 @@ impl Syn {
 }
 
 impl Command for Syn {
-    fn handle(&mut self, command: &String) -> Result<Vec<String>, String> {
+    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let first_timestap = args[2];
@@ -138,9 +138,14 @@ impl Command for Syn {
             let display_name = contact.display_name;
             let contact_email = contact_user.email;
             if !contact.in_forward_list {
-                responses.push(format!(
-                    "LST N={contact_email} F={display_name} {listbit}\r\n"
-                ));
+                let mut lst = format!("LST N={contact_email} F={display_name} {listbit}\r\n");
+
+                if protocol_version >= 12 {
+                    // Only the Windows Live type is supported at the moment
+                    lst = lst.replace("\r\n", " 1\r\n");
+                }
+
+                responses.push(lst);
                 continue;
             }
 
@@ -164,9 +169,18 @@ impl Command for Syn {
                 group_list = list.to_string();
             }
 
-            responses.push(format!(
+            let mut lst = format!(
                 "LST N={contact_email} F={display_name} C={guid} {listbit} {group_list}\r\n"
-            ));
+            );
+
+            if protocol_version >= 12 {
+                // Only the Windows Live type is supported at the moment
+                lst = format!(
+                    "LST N={contact_email} F={display_name} C={guid} {listbit} 1 {group_list}\r\n"
+                );
+            }
+
+            responses.push(lst);
         }
 
         responses.insert(0, format!("SYN {tr_id} {first_timestap} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));

@@ -19,13 +19,12 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
-mod content_type_xml;
 mod login_server;
 mod nexus;
 mod register;
 mod rst;
-mod rst_xml;
 mod stats;
+mod xml;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
 pub async fn listen(
@@ -48,7 +47,7 @@ pub async fn listen(
         .route("/login.srf", get(login_server::login_server))
         .route(
             "/RST.srf",
-            post(rst::rst).layer(middleware::from_fn(content_type_xml::content_type_xml)),
+            post(rst::rst).layer(middleware::from_fn(xml::content_type_xml::content_type_xml)),
         )
         .with_state(pool);
 

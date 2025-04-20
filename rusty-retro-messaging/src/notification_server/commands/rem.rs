@@ -33,7 +33,7 @@ impl Rem {
             .filter(guid.eq(&contact_guid))
             .select(email)
             .get_result(connection)
-            .unwrap()
+            .expect("Could not get email from REM")
     }
 }
 

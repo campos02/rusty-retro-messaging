@@ -1,33 +1,27 @@
 use super::command::Command;
-use crate::schema::users::dsl::users;
-use crate::{
-    models::transient::authenticated_user::AuthenticatedUser,
-    schema::users::{display_name, email},
-};
-use diesel::{
-    ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Joi;
 
 impl Command for Joi {
     fn generate(
-        &mut self,
-        pool: Pool<ConnectionManager<MysqlConnection>>,
+        &self,
+        protocol_version: usize,
         user: &mut AuthenticatedUser,
         tr_id: &str,
     ) -> String {
         let _ = tr_id;
-        let connection = &mut pool.get().expect("Could not get connection from pool");
-        let user_email = &user.email;
-        let user_display_name: String = users
-            .filter(email.eq(&user_email))
-            .select(display_name)
-            .get_result(connection)
-            .expect("Could not get authenticated user display name");
 
-        user.display_name = user_display_name.clone();
+        let user_email = &user.email;
+        let user_display_name = &user.display_name;
+        let client_id = &user.client_id;
+
+        if protocol_version >= 12 {
+            if let Some(client_id) = client_id {
+                return format!("JOI {user_email} {user_display_name} {client_id}\r\n");
+            }
+        }
+
         format!("JOI {user_email} {user_display_name}\r\n")
     }
 }

@@ -3,7 +3,9 @@ use super::command::Command;
 pub struct Ver;
 
 impl Command for Ver {
-    fn handle(&mut self, command: &String) -> Result<Vec<String>, String> {
+    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
+        let _ = protocol_version;
+
         let versions = vec!["MSNP12", "MSNP11"];
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
