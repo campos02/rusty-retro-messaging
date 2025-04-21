@@ -22,6 +22,12 @@ use tokio::{
     sync::broadcast,
 };
 
+enum ContactVerificationError {
+    ContactNotInAllowList,
+    ContactInBlockList,
+    UserAppearingOffline,
+}
+
 pub struct NotificationServer {
     pool: Pool<ConnectionManager<MysqlConnection>>,
     pub broadcast_tx: broadcast::Sender<Message>,
@@ -383,6 +389,16 @@ impl NotificationServer {
                                     if contact.in_block_list {
                                         continue;
                                     }
+                                } else {
+                                    if self
+                                        .authenticated_user
+                                        .as_ref()
+                                        .expect("Could not get authenticated user")
+                                        .blp
+                                        == "BL"
+                                    {
+                                        continue;
+                                    }
                                 }
 
                                 if command[2] != "HDN" {
@@ -498,38 +514,8 @@ impl NotificationServer {
                         .contacts
                         .keys()
                     {
-                        if let Some(contact) = self
-                            .authenticated_user
-                            .clone()
-                            .expect("Could not get authenticated user")
-                            .contacts
-                            .get(email)
-                        {
-                            if self
-                                .authenticated_user
-                                .as_ref()
-                                .expect("Could not get authenticated user")
-                                .blp
-                                == "BL"
-                                && !contact.in_allow_list
-                            {
-                                continue;
-                            }
-
-                            if contact.in_block_list {
-                                continue;
-                            }
-
-                            if let Some(presence) = &self
-                                .authenticated_user
-                                .as_ref()
-                                .expect("Could not get authenticated user")
-                                .presence
-                            {
-                                if presence == "HDN" {
-                                    continue;
-                                }
-                            }
+                        if self.verify_contact(&email).is_err() {
+                            continue;
                         }
 
                         let ubx_command = Ubx::convert(
@@ -1104,38 +1090,8 @@ impl NotificationServer {
 
             "CHG" => {
                 // A user has logged in
-                if let Some(contact) = self
-                    .authenticated_user
-                    .clone()
-                    .expect("Could not get authenticated user")
-                    .contacts
-                    .get(&sender)
-                {
-                    if self
-                        .authenticated_user
-                        .as_ref()
-                        .expect("Could not get authenticated user")
-                        .blp
-                        == "BL"
-                        && !contact.in_allow_list
-                    {
-                        return Ok(());
-                    }
-
-                    if contact.in_block_list {
-                        return Ok(());
-                    }
-
-                    if let Some(presence) = &self
-                        .authenticated_user
-                        .as_ref()
-                        .expect("Could not get authenticated user")
-                        .presence
-                    {
-                        if presence == "HDN" {
-                            return Ok(());
-                        }
-                    }
+                if self.verify_contact(&sender).is_err() {
+                    return Ok(());
                 }
 
                 let iln_command = Iln::convert(
@@ -1184,38 +1140,13 @@ impl NotificationServer {
             }
 
             "ADC" => {
-                if let Some(contact) = self
-                    .authenticated_user
-                    .clone()
-                    .expect("Could not get authenticated user")
-                    .contacts
-                    .get(&sender)
-                {
-                    if self
-                        .authenticated_user
-                        .as_ref()
-                        .expect("Could not get authenticated user")
-                        .blp
-                        == "BL"
-                        && !contact.in_allow_list
-                    {
-                        return Ok(());
-                    }
+                if self.verify_contact(&sender).is_err() {
+                    wr.write_all(message.as_bytes())
+                        .await
+                        .expect("Could not send to client over socket");
 
-                    if contact.in_block_list {
-                        return Ok(());
-                    }
-
-                    if let Some(presence) = &self
-                        .authenticated_user
-                        .as_ref()
-                        .expect("Could not get authenticated user")
-                        .presence
-                    {
-                        if presence == "HDN" {
-                            return Ok(());
-                        }
-                    }
+                    println!("S: {message}");
+                    return Ok(());
                 }
 
                 let nln_command = Nln::convert(
@@ -1278,11 +1209,13 @@ impl NotificationServer {
             }
 
             "RNG" => {
-                wr.write_all(message.as_bytes())
-                    .await
-                    .expect("Could not send to client over socket");
+                if self.verify_contact(&sender).is_ok() {
+                    wr.write_all(message.as_bytes())
+                        .await
+                        .expect("Could not send to client over socket");
 
-                println!("S: {message}");
+                    println!("S: {message}");
+                }
             }
 
             "OUT" => {
@@ -1295,24 +1228,92 @@ impl NotificationServer {
             }
 
             "GetUserDetails" => {
-                let thread_message = Message::SendUserDetails {
-                    sender: self
-                        .authenticated_user
-                        .as_ref()
-                        .expect("Could not get authenticated user")
-                        .email
-                        .clone(),
-                    receiver: sender,
-                    authenticated_user: self.authenticated_user.clone(),
-                    protocol_version: self.protocol_version,
-                };
+                if self.verify_contact(&sender).is_ok() {
+                    let thread_message = Message::SendUserDetails {
+                        sender: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
+                        receiver: sender,
+                        authenticated_user: self.authenticated_user.clone(),
+                        protocol_version: self.protocol_version,
+                    };
 
-                self.broadcast_tx
-                    .send(thread_message)
-                    .expect("Could not send to broadcast");
+                    self.broadcast_tx
+                        .send(thread_message)
+                        .expect("Could not send to broadcast");
+                } else {
+                    let thread_message = Message::SendUserDetails {
+                        sender: self
+                            .authenticated_user
+                            .as_ref()
+                            .expect("Could not get authenticated user")
+                            .email
+                            .clone(),
+                        receiver: sender,
+                        authenticated_user: None,
+                        protocol_version: None,
+                    };
+
+                    self.broadcast_tx
+                        .send(thread_message)
+                        .expect("Could not send to broadcast");
+                }
             }
             _ => (),
         };
+
+        Ok(())
+    }
+
+    fn verify_contact(&self, email: &String) -> Result<(), ContactVerificationError> {
+        if let Some(contact) = self
+            .authenticated_user
+            .as_ref()
+            .expect("Could not get authenticated user")
+            .contacts
+            .get(email)
+        {
+            if self
+                .authenticated_user
+                .as_ref()
+                .expect("Could not get authenticated user")
+                .blp
+                == "BL"
+                && !contact.in_allow_list
+            {
+                return Err(ContactVerificationError::ContactNotInAllowList);
+            }
+
+            if contact.in_block_list {
+                return Err(ContactVerificationError::ContactInBlockList);
+            }
+
+            if let Some(presence) = &self
+                .authenticated_user
+                .as_ref()
+                .expect("Could not get authenticated user")
+                .presence
+            {
+                if presence == "HDN" {
+                    return Err(ContactVerificationError::UserAppearingOffline);
+                }
+            } else {
+                return Err(ContactVerificationError::UserAppearingOffline);
+            }
+        } else {
+            if self
+                .authenticated_user
+                .as_ref()
+                .expect("Could not get authenticated user")
+                .blp
+                == "BL"
+            {
+                return Err(ContactVerificationError::ContactNotInAllowList);
+            }
+        }
 
         Ok(())
     }

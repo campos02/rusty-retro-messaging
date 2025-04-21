@@ -141,14 +141,23 @@ async fn main() {
                     }
 
                     Message::ToContact { receiver, sender, message } => {
-                        let tx = channels.get(&receiver);
-                        if let Some(tx) = tx {
+                        let contact_tx = channels.get(&receiver);
+                        if let Some(tx) = contact_tx {
                             if let Err(error) = tx.send(Message::ToContact {
                                 sender,
                                 receiver: receiver.clone(),
                                 message
                             }) {
                                 eprintln!("Could not send message to {receiver}: {error}");
+                            }
+                        } else {
+                            if let Err(error) = tx.send(Message::UserDetails {
+                                sender: receiver,
+                                receiver: sender.clone(),
+                                authenticated_user: None,
+                                protocol_version: None
+                            }) {
+                                eprintln!("Could not send user details to {sender}: {error}");
                             }
                         }
                     }

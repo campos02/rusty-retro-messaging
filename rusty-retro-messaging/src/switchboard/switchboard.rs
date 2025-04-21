@@ -184,7 +184,6 @@ impl Switchboard {
 
                         {
                             let mut broadcast_rx = self.broadcast_tx.subscribe();
-
                             loop {
                                 let message = match broadcast_rx.recv().await {
                                     Ok(msg) => msg,
@@ -240,7 +239,6 @@ impl Switchboard {
 
                         {
                             let mut broadcast_rx = self.broadcast_tx.subscribe();
-
                             loop {
                                 let message = match broadcast_rx.recv().await {
                                     Ok(msg) => msg,
@@ -326,7 +324,6 @@ impl Switchboard {
 
                         {
                             let mut broadcast_rx = self.broadcast_tx.subscribe();
-
                             loop {
                                 let message = match broadcast_rx.recv().await {
                                     Ok(msg) => msg,
@@ -382,7 +379,6 @@ impl Switchboard {
 
                         {
                             let mut broadcast_rx = self.broadcast_tx.subscribe();
-
                             loop {
                                 let message = match broadcast_rx.recv().await {
                                     Ok(msg) => msg,
@@ -753,7 +749,6 @@ impl Switchboard {
 
         {
             let mut broadcast_rx = self.broadcast_tx.subscribe();
-
             loop {
                 let message = match broadcast_rx.recv().await {
                     Ok(msg) => msg,
