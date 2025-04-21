@@ -1,4 +1,6 @@
-use crate::switchboard::session::Session;
+use crate::{
+    models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
+};
 use tokio::sync::broadcast::Sender;
 
 #[allow(dead_code)]
@@ -41,6 +43,20 @@ pub enum Message {
     ToPrincipals {
         sender: String,
         message: String,
+    },
+
+    SendUserDetails {
+        sender: String,
+        receiver: String,
+        authenticated_user: Option<AuthenticatedUser>,
+        protocol_version: Option<usize>,
+    },
+
+    UserDetails {
+        sender: String,
+        receiver: String,
+        authenticated_user: Option<AuthenticatedUser>,
+        protocol_version: Option<usize>,
     },
 
     UserCount(u32),

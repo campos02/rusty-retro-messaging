@@ -8,37 +8,33 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, tcp::WriteHalf},
-    sync::broadcast,
+    sync::broadcast::{self, error::RecvError},
 };
 
+enum InvitationError {
+    PrincipalUserNotFound,
+    PrincipalOffline,
+}
+
 pub struct Switchboard {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
     pub broadcast_tx: broadcast::Sender<Message>,
-    broadcast_rx: broadcast::Receiver<Message>,
     pub session: Option<Session>,
     session_rx: Option<broadcast::Receiver<Message>>,
     authenticated_user: Option<AuthenticatedUser>,
+    protocol_version: Option<usize>,
 }
 
 impl Switchboard {
-    pub fn new(
-        pool: Pool<ConnectionManager<MysqlConnection>>,
-        broadcast_tx: broadcast::Sender<Message>,
-    ) -> Self {
+    pub fn new(broadcast_tx: broadcast::Sender<Message>) -> Self {
         Switchboard {
-            pool,
             broadcast_tx: broadcast_tx.clone(),
-            broadcast_rx: broadcast_tx.subscribe(),
             session: None,
             session_rx: None,
             authenticated_user: None,
+            protocol_version: None,
         }
     }
 
@@ -186,14 +182,30 @@ impl Switchboard {
                             .send(Message::GetSession(cki_string.to_string()))
                             .expect("Could not send to broadcast");
 
-                        while let Ok(message) = self.broadcast_rx.recv().await {
-                            if let Message::Session { key, value } = message {
-                                if key == cki_string {
-                                    self.session = value;
-                                    if !self.broadcast_rx.is_empty() {
-                                        continue;
+                        {
+                            let mut broadcast_rx = self.broadcast_tx.subscribe();
+
+                            loop {
+                                let message = match broadcast_rx.recv().await {
+                                    Ok(msg) => msg,
+                                    Err(err) => {
+                                        if let RecvError::Lagged(_) = err {
+                                            continue;
+                                        } else {
+                                            return Err("Could not receive from broadcast");
+                                        }
                                     }
-                                    break;
+                                };
+
+                                if let Message::Session { key, value } = message {
+                                    if key == cki_string {
+                                        self.session = value;
+
+                                        if !broadcast_rx.is_empty() {
+                                            continue;
+                                        }
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -205,7 +217,6 @@ impl Switchboard {
                                 .expect("Could not send to client over socket");
 
                             println!("S: {reply}");
-
                             return Err("Session not found");
                         }
 
@@ -216,11 +227,55 @@ impl Switchboard {
                                 .session_tx
                                 .subscribe(),
                         );
-                        self.authenticated_user =
-                            Some(AuthenticatedUser::new(user_email.to_string()));
+
+                        let message = Message::ToContact {
+                            sender: user_email.to_string(),
+                            receiver: user_email.to_string(),
+                            message: "GetUserDetails".to_string(),
+                        };
+
+                        self.broadcast_tx
+                            .send(message)
+                            .expect("Could not send to broadcast");
+
+                        {
+                            let mut broadcast_rx = self.broadcast_tx.subscribe();
+
+                            loop {
+                                let message = match broadcast_rx.recv().await {
+                                    Ok(msg) => msg,
+                                    Err(err) => {
+                                        if let RecvError::Lagged(_) = err {
+                                            continue;
+                                        } else {
+                                            return Err("Could not receive from broadcast");
+                                        }
+                                    }
+                                };
+
+                                if let Message::UserDetails {
+                                    sender,
+                                    receiver: _,
+                                    authenticated_user,
+                                    protocol_version,
+                                } = message
+                                {
+                                    if sender == user_email {
+                                        self.authenticated_user = authenticated_user;
+                                        self.protocol_version = protocol_version;
+
+                                        if !broadcast_rx.is_empty() {
+                                            continue;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
 
                         let reply = Usr.generate(
-                            self.pool.clone(),
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
                             self.authenticated_user
                                 .as_mut()
                                 .expect("Could not get authenticated user"),
@@ -244,6 +299,12 @@ impl Switchboard {
                                     .expect("Could not get authenticated user")
                                     .display_name
                                     .clone(),
+                                client_id: self
+                                    .authenticated_user
+                                    .as_ref()
+                                    .expect("Could not get authenticated user")
+                                    .client_id
+                                    .clone(),
                             });
                         }
 
@@ -263,14 +324,30 @@ impl Switchboard {
                             .send(Message::GetSession(cki_string.to_string()))
                             .expect("Could not send to broadcast");
 
-                        while let Ok(message) = self.broadcast_rx.recv().await {
-                            if let Message::Session { key, value } = message {
-                                if key == cki_string {
-                                    self.session = value;
-                                    if !self.broadcast_rx.is_empty() {
-                                        continue;
+                        {
+                            let mut broadcast_rx = self.broadcast_tx.subscribe();
+
+                            loop {
+                                let message = match broadcast_rx.recv().await {
+                                    Ok(msg) => msg,
+                                    Err(err) => {
+                                        if let RecvError::Lagged(_) = err {
+                                            continue;
+                                        } else {
+                                            return Err("Could not receive from broadcast");
+                                        }
                                     }
-                                    break;
+                                };
+
+                                if let Message::Session { key, value } = message {
+                                    if key == cki_string {
+                                        self.session = value;
+
+                                        if !broadcast_rx.is_empty() {
+                                            continue;
+                                        }
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -282,7 +359,6 @@ impl Switchboard {
                                 .expect("Could not send to client over socket");
 
                             println!("S: {reply}");
-
                             return Err("Session not found");
                         }
 
@@ -293,11 +369,55 @@ impl Switchboard {
                                 .session_tx
                                 .subscribe(),
                         );
-                        self.authenticated_user =
-                            Some(AuthenticatedUser::new(user_email.to_string()));
+
+                        let message = Message::ToContact {
+                            sender: user_email.to_string(),
+                            receiver: user_email.to_string(),
+                            message: "GetUserDetails".to_string(),
+                        };
+
+                        self.broadcast_tx
+                            .send(message)
+                            .expect("Could not send to broadcast");
+
+                        {
+                            let mut broadcast_rx = self.broadcast_tx.subscribe();
+
+                            loop {
+                                let message = match broadcast_rx.recv().await {
+                                    Ok(msg) => msg,
+                                    Err(err) => {
+                                        if let RecvError::Lagged(_) = err {
+                                            continue;
+                                        } else {
+                                            return Err("Could not receive from broadcast");
+                                        }
+                                    }
+                                };
+
+                                if let Message::UserDetails {
+                                    sender,
+                                    receiver: _,
+                                    authenticated_user,
+                                    protocol_version,
+                                } = message
+                                {
+                                    if sender == user_email {
+                                        self.authenticated_user = authenticated_user;
+                                        self.protocol_version = protocol_version;
+
+                                        if !broadcast_rx.is_empty() {
+                                            continue;
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
 
                         let joi = Joi.generate(
-                            self.pool.clone(),
+                            self.protocol_version
+                                .expect("Could not get protocol version"),
                             self.authenticated_user
                                 .as_mut()
                                 .expect("Could not get authenticated user"),
@@ -321,9 +441,23 @@ impl Switchboard {
                                 let email = principal.email;
                                 let display_name = principal.display_name;
 
-                                iro_replies.push(format!(
+                                let mut iro_reply = format!(
                                     "IRO {tr_id} {index} {count} {email} {display_name}\r\n"
-                                ));
+                                );
+
+                                if self
+                                    .protocol_version
+                                    .expect("Could not get protocol version")
+                                    >= 12
+                                {
+                                    if let Some(client_id) = principal.client_id {
+                                        iro_reply = format!(
+                                            "IRO {tr_id} {index} {count} {email} {display_name} {client_id}\r\n"
+                                        );
+                                    }
+                                }
+
+                                iro_replies.push(iro_reply);
                                 index += 1;
                             }
 
@@ -334,6 +468,12 @@ impl Switchboard {
                                     .as_ref()
                                     .expect("Could not get authenticated user")
                                     .display_name
+                                    .clone(),
+                                client_id: self
+                                    .authenticated_user
+                                    .as_ref()
+                                    .expect("Could not get authenticated user")
+                                    .client_id
                                     .clone(),
                             });
                         }
@@ -398,7 +538,7 @@ impl Switchboard {
                         .session_id
                         .clone();
 
-                    let mut rng = Rng {
+                    let rng = Rng {
                         session_id: session_id.clone(),
                         cki_string: self
                             .session
@@ -409,7 +549,8 @@ impl Switchboard {
                     };
 
                     let rng = rng.generate(
-                        self.pool.clone(),
+                        self.protocol_version
+                            .expect("Could not get protocol version"),
                         self.authenticated_user
                             .as_mut()
                             .expect("Could not get authenticated user"),
@@ -574,7 +715,7 @@ impl Switchboard {
         }
     }
 
-    async fn invite_to_session(&mut self, email: &String, message: Message) -> Result<(), &str> {
+    async fn invite_to_session(&mut self, email: &String, rng: Message) -> Result<(), &str> {
         {
             let principals = self
                 .session
@@ -593,51 +734,73 @@ impl Switchboard {
             }
         }
 
-        self.broadcast_tx
-            .send(Message::GetTx(email.clone()))
-            .expect("Could not send to broadcast");
-
-        let mut contact_tx = None;
-        while let Ok(message) = self.broadcast_rx.recv().await {
-            if let Message::Tx { key, value } = message {
-                if key == *email {
-                    contact_tx = value;
-                    if !self.broadcast_rx.is_empty() {
-                        continue;
-                    }
-                    break;
-                }
-            }
-        }
-
-        let Some(contact_tx) = contact_tx.as_ref() else {
-            return Err("217");
+        let message = Message::ToContact {
+            sender: self
+                .authenticated_user
+                .as_ref()
+                .expect("Could not get authenticated user")
+                .email
+                .clone(),
+            receiver: email.to_string(),
+            message: "GetUserDetails".to_string(),
         };
 
-        let mut contact_rx = contact_tx.subscribe();
-        if contact_tx.send(message).is_err() {
-            return Err("217");
-        }
+        self.broadcast_tx
+            .send(message)
+            .expect("Could not send to broadcast");
 
-        let mut presence = String::from("None");
-        while let Ok(message) = contact_rx.recv().await {
-            if let Message::ToContact {
-                sender,
-                receiver: _,
-                message,
-            } = message
-            {
-                if sender == *email {
-                    presence = message;
-                    if !contact_rx.is_empty() {
-                        continue;
+        let mut principal_user;
+
+        {
+            let mut broadcast_rx = self.broadcast_tx.subscribe();
+
+            loop {
+                let message = match broadcast_rx.recv().await {
+                    Ok(msg) => msg,
+                    Err(err) => {
+                        if let RecvError::Lagged(_) = err {
+                            continue;
+                        } else {
+                            return Err("Could not receive from broadcast");
+                        }
                     }
-                    break;
+                };
+
+                if let Message::UserDetails {
+                    sender,
+                    receiver: _,
+                    authenticated_user,
+                    protocol_version: _,
+                } = message
+                {
+                    if sender == *email {
+                        principal_user = authenticated_user;
+
+                        if !broadcast_rx.is_empty() {
+                            continue;
+                        }
+                        break;
+                    }
                 }
             }
         }
 
-        if presence == "HDN" || presence == "None" {
+        if let Ok(presence) = principal_user
+            .ok_or_else(|| InvitationError::PrincipalUserNotFound)
+            .and_then(|authenticated_user| {
+                authenticated_user
+                    .presence
+                    .ok_or_else(|| InvitationError::PrincipalOffline)
+            })
+        {
+            if presence == "HDN" {
+                return Err("217");
+            }
+        } else {
+            return Err("217");
+        }
+
+        if self.broadcast_tx.send(rng).is_err() {
             return Err("217");
         }
 
@@ -669,7 +832,8 @@ impl Switchboard {
         }
 
         let mut bye_command = Bye.generate(
-            self.pool.clone(),
+            self.protocol_version
+                .expect("Could not get protocol version"),
             self.authenticated_user
                 .as_mut()
                 .expect("Could not get authenticated user"),

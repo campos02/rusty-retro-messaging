@@ -1,7 +1,7 @@
 use super::transient_contact::TransientContact;
 use std::collections::HashMap;
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AuthenticatedUser {
     pub email: String,
     pub display_name: String,

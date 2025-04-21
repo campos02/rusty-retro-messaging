@@ -39,7 +39,7 @@ async fn main() {
 
     println!("Switchboard listening on port 1864");
 
-    let (tx, mut rx) = broadcast::channel::<Message>(16);
+    let (tx, mut rx) = broadcast::channel::<Message>(64);
     tokio::spawn(http::listen(pool.clone(), tx.clone()));
 
     let mut channels: HashMap<String, broadcast::Sender<Message>> = HashMap::new();
@@ -95,11 +95,10 @@ async fn main() {
                     }
                 };
 
-                let pool = pool.clone();
                 let tx = tx.clone();
 
                 tokio::spawn(async move {
-                    let mut connection = Switchboard::new(pool, tx);
+                    let mut connection = Switchboard::new(tx);
                     loop {
                         if let Err(error) = connection.listen(&mut socket).await {
                             eprintln!("{error}");
@@ -144,7 +143,11 @@ async fn main() {
                     Message::ToContact { receiver, sender, message } => {
                         let tx = channels.get(&receiver);
                         if let Some(tx) = tx {
-                            if let Err(error) = tx.send(Message::ToContact { sender: sender, receiver: receiver.clone(), message: message }) {
+                            if let Err(error) = tx.send(Message::ToContact {
+                                sender,
+                                receiver: receiver.clone(),
+                                message
+                            }) {
                                 eprintln!("Could not send message to {receiver}: {error}");
                             }
                         }
@@ -177,6 +180,17 @@ async fn main() {
 
                     Message::RemoveUser => {
                         user_count -= 1;
+                    }
+
+                    Message::SendUserDetails { receiver, sender, authenticated_user, protocol_version } => {
+                        if let Err(error) = tx.send(Message::UserDetails {
+                            sender,
+                            receiver: receiver.clone(),
+                            authenticated_user,
+                            protocol_version
+                        }) {
+                            eprintln!("Could not send user details to {receiver}: {error}");
+                        }
                     }
                     _ => ()
                 };

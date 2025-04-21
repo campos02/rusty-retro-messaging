@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct TransientContact {
     pub email: String,
     pub display_name: String,
