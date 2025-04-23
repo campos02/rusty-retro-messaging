@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::command::Command;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use std::env;
 

@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::schema::users::blp;
 use crate::schema::users::dsl::users;
 use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
@@ -17,7 +17,7 @@ impl Blp {
     }
 }
 
-impl Command for Blp {
+impl AuthenticatedCommand for Blp {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

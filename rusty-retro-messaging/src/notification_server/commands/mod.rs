@@ -1,9 +1,7 @@
 pub mod adc;
 pub mod adg;
 pub mod blp;
-pub mod broadcasted_command;
 pub mod chg;
-pub mod command;
 pub mod cvr;
 pub mod fln;
 pub mod gcf;
@@ -17,6 +15,7 @@ pub mod rmg;
 pub mod sbp;
 pub mod sdc;
 pub mod syn;
+pub mod traits;
 pub mod ubx;
 pub mod url;
 pub mod usr;

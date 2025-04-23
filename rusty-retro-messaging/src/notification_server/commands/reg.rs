@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::groups::{guid, name};
@@ -19,7 +19,7 @@ impl Reg {
     }
 }
 
-impl Command for Reg {
+impl AuthenticatedCommand for Reg {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

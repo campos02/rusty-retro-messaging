@@ -1,5 +1,5 @@
-use super::broadcasted_command::BroadcastedCommand;
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::broadcasted_command::BroadcastedCommand;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -34,7 +34,7 @@ impl Adc {
     }
 }
 
-impl Command for Adc {
+impl AuthenticatedCommand for Adc {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

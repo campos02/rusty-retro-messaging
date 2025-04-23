@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::command::Command;
 use crate::models::token::Token;
 use crate::models::user::User;
 use crate::schema::tokens::dsl::tokens;

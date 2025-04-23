@@ -1,4 +1,4 @@
-use super::broadcasted_command::BroadcastedCommand;
+use super::traits::broadcasted_command::BroadcastedCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Fln;

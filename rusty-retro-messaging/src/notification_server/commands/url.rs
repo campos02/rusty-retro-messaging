@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::command::Command;
 use std::env;
 
 pub struct Url;

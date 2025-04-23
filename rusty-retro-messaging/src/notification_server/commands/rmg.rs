@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -21,7 +21,7 @@ impl Rmg {
     }
 }
 
-impl Command for Rmg {
+impl AuthenticatedCommand for Rmg {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::groups::dsl::groups;
@@ -21,7 +21,7 @@ impl Adg {
     }
 }
 
-impl Command for Adg {
+impl AuthenticatedCommand for Adg {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

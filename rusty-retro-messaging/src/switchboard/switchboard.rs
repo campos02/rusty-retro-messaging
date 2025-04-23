@@ -2,7 +2,7 @@ use crate::{
     Message,
     models::transient::{authenticated_user::AuthenticatedUser, principal::Principal},
     switchboard::{
-        commands::{bye::Bye, command::Command, joi::Joi, rng::Rng, usr::Usr},
+        commands::{bye::Bye, joi::Joi, rng::Rng, traits::command::Command, usr::Usr},
         session::Session,
     },
 };

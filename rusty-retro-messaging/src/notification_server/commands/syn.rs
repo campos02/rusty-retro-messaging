@@ -1,9 +1,4 @@
-use diesel::{
-    BelongingToDsl, ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
-
-use super::command::Command;
+use super::traits::command::Command;
 use crate::schema::contacts::dsl::contacts;
 use crate::schema::group_members::contact_id as member_contact_id;
 use crate::schema::users::dsl::users;
@@ -17,6 +12,10 @@ use crate::{
 use crate::{
     models::{contact::Contact, group::Group, user::User},
     schema::users::{email, id},
+};
+use diesel::{
+    BelongingToDsl, ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+    r2d2::{ConnectionManager, Pool},
 };
 
 pub struct Syn {

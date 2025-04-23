@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::users::dsl::users;
 use crate::{
@@ -24,7 +24,7 @@ impl Sbp {
     }
 }
 
-impl Command for Sbp {
+impl AuthenticatedCommand for Sbp {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

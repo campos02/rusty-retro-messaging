@@ -1,9 +1,11 @@
-use super::{broadcasted_command::BroadcastedCommand, command::Command};
+use super::traits::{
+    authenticated_command::AuthenticatedCommand, broadcasted_command::BroadcastedCommand,
+};
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Uux;
 
-impl Command for Uux {
+impl AuthenticatedCommand for Uux {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

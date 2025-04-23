@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::schema::users::dsl::users;
 use crate::schema::users::gtc;
 use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
@@ -17,7 +17,7 @@ impl Gtc {
     }
 }
 
-impl Command for Gtc {
+impl AuthenticatedCommand for Gtc {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,

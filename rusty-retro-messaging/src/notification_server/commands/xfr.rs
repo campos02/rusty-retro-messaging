@@ -1,4 +1,4 @@
-use super::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use rand::distr::SampleString;
 use rand_distr::Alphanumeric;
@@ -6,7 +6,7 @@ use std::env;
 
 pub struct Xfr;
 
-impl Command for Xfr {
+impl AuthenticatedCommand for Xfr {
     fn handle_with_authenticated_user(
         &mut self,
         command: &String,
