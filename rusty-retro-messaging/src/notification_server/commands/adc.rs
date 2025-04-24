@@ -1,5 +1,8 @@
+use super::fln::Fln;
 use super::traits::authenticated_command::AuthenticatedCommand;
 use super::traits::broadcasted_command::BroadcastedCommand;
+use crate::error_command::ErrorCommand;
+use crate::message::Message;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -23,30 +26,38 @@ use diesel::{
     SelectableHelper,
     r2d2::{ConnectionManager, Pool},
 };
+use tokio::sync::broadcast;
 
 pub struct Adc {
     pool: Pool<ConnectionManager<MysqlConnection>>,
+    broadcast_tx: broadcast::Sender<Message>,
 }
 
 impl Adc {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
-        Adc { pool }
+    pub fn new(
+        pool: Pool<ConnectionManager<MysqlConnection>>,
+        broadcast_tx: broadcast::Sender<Message>,
+    ) -> Self {
+        Adc { pool, broadcast_tx }
     }
 }
 
 impl AuthenticatedCommand for Adc {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let list = args[2];
         let contact_email = args[3];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         let mut forward_list = false;
@@ -57,14 +68,14 @@ impl AuthenticatedCommand for Adc {
             "FL" => forward_list = true,
             "AL" => allow_list = true,
             "BL" => block_list = true,
-            _ => return Err(format!("201 {tr_id}\r\n")),
+            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
         }
 
         if contact_email.starts_with("N=") {
             let contact_email = contact_email.replace("N=", "");
 
             if contact_email == user.email {
-                return Err(format!("201 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
             }
 
             let Ok(user_database) = users
@@ -72,7 +83,7 @@ impl AuthenticatedCommand for Adc {
                 .select(User::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             };
 
             let Ok(contact_user) = users
@@ -80,7 +91,7 @@ impl AuthenticatedCommand for Adc {
                 .select(User::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("208 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("208 {tr_id}\r\n")));
             };
 
             if let Ok(contact) = Contact::belonging_to(&user_database)
@@ -91,7 +102,7 @@ impl AuthenticatedCommand for Adc {
             {
                 if forward_list {
                     if contact.in_forward_list {
-                        return Err(format!("215 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -99,7 +110,7 @@ impl AuthenticatedCommand for Adc {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -107,7 +118,7 @@ impl AuthenticatedCommand for Adc {
                     };
                 } else if allow_list {
                     if contact.in_allow_list {
-                        return Err(format!("215 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -115,7 +126,7 @@ impl AuthenticatedCommand for Adc {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -123,7 +134,7 @@ impl AuthenticatedCommand for Adc {
                     };
                 } else if block_list {
                     if contact.in_block_list {
-                        return Err(format!("215 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -131,7 +142,7 @@ impl AuthenticatedCommand for Adc {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -157,7 +168,7 @@ impl AuthenticatedCommand for Adc {
                     .execute(connection)
                     .is_err()
                 {
-                    return Err(format!("603 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
 
                 user.contacts.insert(
@@ -178,10 +189,33 @@ impl AuthenticatedCommand for Adc {
                 let contact_guid = contact_user.guid;
                 let contact_display_name = args[4];
 
+                let message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: contact_email.clone(),
+                    message: Adc::convert(&user, &command),
+                };
+
+                self.broadcast_tx
+                    .send(message)
+                    .expect("Could not send to broadcast");
+
                 return Ok(vec![format!(
                     "ADC {tr_id} {list} N={contact_email} {contact_display_name} C={contact_guid}\r\n"
                 )]);
             } else {
+                if block_list {
+                    let fln_command = Fln::convert(&user, &command);
+                    let message = Message::ToContact {
+                        sender: user.email.clone(),
+                        receiver: contact_email.clone(),
+                        message: fln_command,
+                    };
+
+                    self.broadcast_tx
+                        .send(message)
+                        .expect("Could not send to broadcast");
+                }
+
                 return Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")]);
             }
         // Add to group
@@ -195,7 +229,7 @@ impl AuthenticatedCommand for Adc {
                 .select(User::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             };
 
             let Ok(group) = groups
@@ -203,7 +237,7 @@ impl AuthenticatedCommand for Adc {
                 .select(Group::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("224 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
             };
 
             let Ok(contact) = Contact::belonging_to(&user_database)
@@ -212,7 +246,7 @@ impl AuthenticatedCommand for Adc {
                 .select(Contact::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("208 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("208 {tr_id}\r\n")));
             };
 
             if GroupMember::belonging_to(&group)
@@ -221,7 +255,7 @@ impl AuthenticatedCommand for Adc {
                 .get_result(connection)
                 .is_ok()
             {
-                return Err(format!("215 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
             } else {
                 if insert_into(group_members)
                     .values((
@@ -231,7 +265,7 @@ impl AuthenticatedCommand for Adc {
                     .execute(connection)
                     .is_err()
                 {
-                    return Err(format!("603 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
             }
 
@@ -240,7 +274,7 @@ impl AuthenticatedCommand for Adc {
             )]);
         }
 
-        Err(format!("208 {tr_id}\r\n"))
+        Err(ErrorCommand::Command(format!("208 {tr_id}\r\n")))
     }
 }
 

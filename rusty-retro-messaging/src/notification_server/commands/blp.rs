@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::schema::users::blp;
 use crate::schema::users::dsl::users;
 use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
@@ -18,17 +19,20 @@ impl Blp {
 }
 
 impl AuthenticatedCommand for Blp {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let setting = args[2];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if setting == "AL" || setting == "BL" {
@@ -38,7 +42,7 @@ impl AuthenticatedCommand for Blp {
                 .execute(connection)
                 .is_err()
             {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             user.blp = setting.to_string();

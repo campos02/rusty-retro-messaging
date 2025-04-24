@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::groups::{guid, name};
@@ -20,11 +21,14 @@ impl Reg {
 }
 
 impl AuthenticatedCommand for Reg {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_guid = args[2];
@@ -32,7 +36,7 @@ impl AuthenticatedCommand for Reg {
         let number = args[4];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         let Ok(user_database) = users
@@ -40,7 +44,7 @@ impl AuthenticatedCommand for Reg {
             .select(User::as_select())
             .get_result(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if let Ok(group) = Group::belonging_to(&user_database)
@@ -54,7 +58,7 @@ impl AuthenticatedCommand for Reg {
                 .get_result(connection)
                 .is_ok()
             {
-                return Err(format!("228 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")));
             }
 
             if diesel::update(&group)
@@ -62,14 +66,14 @@ impl AuthenticatedCommand for Reg {
                 .execute(connection)
                 .is_err()
             {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             return Ok(vec![format!(
                 "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"
             )]);
         } else {
-            return Err(format!("224 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
         }
     }
 }

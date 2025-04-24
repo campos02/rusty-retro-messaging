@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -22,21 +23,24 @@ impl Rmg {
 }
 
 impl AuthenticatedCommand for Rmg {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_guid = args[2];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if group_guid == "0" {
-            return Err(format!("230 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("230 {tr_id}\r\n")));
         }
 
         let Ok(user_database) = users
@@ -44,7 +48,7 @@ impl AuthenticatedCommand for Rmg {
             .select(User::as_select())
             .get_result(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if let Ok(group) = Group::belonging_to(&user_database)
@@ -58,15 +62,15 @@ impl AuthenticatedCommand for Rmg {
                 .get_result(connection)
                 .is_ok()
             {
-                return Err(format!("226 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("226 {tr_id}\r\n")));
             } else {
                 if delete(&group).execute(connection).is_err() {
-                    return Err(format!("603 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
             }
             return Ok(vec![format!("RMG {tr_id} 1 {group_guid}\r\n")]);
         } else {
-            return Err(format!("224 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
         }
     }
 }

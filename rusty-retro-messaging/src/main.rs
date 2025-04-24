@@ -3,12 +3,14 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
 };
 use dotenvy::dotenv;
+use error_command::ErrorCommand;
 use message::Message;
 use notification_server::notification_server::NotificationServer;
 use std::{collections::HashMap, env};
 use switchboard::{session::Session, switchboard::Switchboard};
 use tokio::{net::TcpListener, sync::broadcast};
 
+mod error_command;
 mod http;
 mod message;
 pub mod models;
@@ -63,7 +65,7 @@ async fn main() {
                 tokio::spawn(async move {
                     let mut connection = NotificationServer::new(pool, tx);
                     loop {
-                        if let Err(error) = connection.listen(&mut socket).await {
+                        if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
                             eprintln!("{error}");
 
                             if connection.authenticated_user.is_some() {
@@ -100,7 +102,7 @@ async fn main() {
                 tokio::spawn(async move {
                     let mut connection = Switchboard::new(tx);
                     loop {
-                        if let Err(error) = connection.listen(&mut socket).await {
+                        if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
                             eprintln!("{error}");
 
                             if let Some(ref session) = connection.session {

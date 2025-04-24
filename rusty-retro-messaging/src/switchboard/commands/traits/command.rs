@@ -1,10 +1,14 @@
-use crate::models::transient::authenticated_user::AuthenticatedUser;
+use crate::{
+    error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
+};
 
 pub trait Command {
-    fn generate(
+    async fn handle(
         &self,
         protocol_version: usize,
         user: &mut AuthenticatedUser,
-        tr_id: &str,
-    ) -> String;
+        session: &mut Session,
+        base64_command: &String,
+    ) -> Result<Vec<String>, ErrorCommand>;
 }

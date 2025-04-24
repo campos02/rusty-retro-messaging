@@ -1,12 +1,14 @@
+use super::nln::Nln;
 use super::traits::authenticated_command::AuthenticatedCommand;
 use super::traits::broadcasted_command::BroadcastedCommand;
+use crate::error_command::ErrorCommand;
+use crate::message::Message;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::contacts::{in_allow_list, in_block_list, in_forward_list};
 use crate::schema::groups::dsl::groups;
 use crate::schema::users::dsl::users;
-use crate::schema::users::guid;
 use crate::{
     models::{contact::Contact, user::User},
     schema::users::{email, id},
@@ -17,39 +19,38 @@ use diesel::{
     SelectableHelper,
     r2d2::{ConnectionManager, Pool},
 };
+use tokio::sync::broadcast;
 
 pub struct Rem {
     pool: Pool<ConnectionManager<MysqlConnection>>,
+    broadcast_tx: broadcast::Sender<Message>,
 }
 
 impl Rem {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
-        Rem { pool }
-    }
-
-    pub fn get_contact_email(&self, contact_guid: &str) -> String {
-        let connection = &mut self.pool.get().expect("Could not get connection from pool");
-        users
-            .filter(guid.eq(&contact_guid))
-            .select(email)
-            .get_result(connection)
-            .expect("Could not get email from REM")
+    pub fn new(
+        pool: Pool<ConnectionManager<MysqlConnection>>,
+        broadcast_tx: broadcast::Sender<Message>,
+    ) -> Self {
+        Rem { pool, broadcast_tx }
     }
 }
 
 impl AuthenticatedCommand for Rem {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let list = args[2];
         let contact_email = args[3];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         let mut forward_list = false;
@@ -60,8 +61,8 @@ impl AuthenticatedCommand for Rem {
             "FL" => forward_list = true,
             "AL" => allow_list = true,
             "BL" => block_list = true,
-            "RL" => return Err("Removing from RL".to_string()),
-            _ => return Err(format!("201 {tr_id}\r\n")),
+            "RL" => return Err(ErrorCommand::Disconnect("Removing from RL".to_string())),
+            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
         }
 
         if forward_list {
@@ -75,7 +76,7 @@ impl AuthenticatedCommand for Rem {
                     .select(User::as_select())
                     .get_result(connection)
                 else {
-                    return Err(format!("603 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 };
 
                 let Ok(group) = groups
@@ -83,7 +84,7 @@ impl AuthenticatedCommand for Rem {
                     .select(Group::as_select())
                     .get_result(connection)
                 else {
-                    return Err(format!("224 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
                 };
 
                 let Ok(contact) = Contact::belonging_to(&user_database)
@@ -92,7 +93,7 @@ impl AuthenticatedCommand for Rem {
                     .select(Contact::as_select())
                     .get_result(connection)
                 else {
-                    return Err(format!("216 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                 };
 
                 if let Ok(member) = GroupMember::belonging_to(&group)
@@ -101,10 +102,10 @@ impl AuthenticatedCommand for Rem {
                     .get_result(connection)
                 {
                     if delete(&member).execute(connection).is_err() {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
                 } else {
-                    return Err(format!("225 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("225 {tr_id}\r\n")));
                 }
 
                 return Ok(vec![format!(
@@ -118,7 +119,7 @@ impl AuthenticatedCommand for Rem {
                     .select(User::as_select())
                     .get_result(connection)
                 else {
-                    return Err(format!("603 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 };
 
                 if let Ok(contact) = Contact::belonging_to(&user_database)
@@ -129,7 +130,7 @@ impl AuthenticatedCommand for Rem {
                 {
                     let forward_list = false;
                     if !contact.in_forward_list {
-                        return Err(format!("216 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -137,7 +138,7 @@ impl AuthenticatedCommand for Rem {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     let Ok(contact_email) = users
@@ -145,14 +146,24 @@ impl AuthenticatedCommand for Rem {
                         .select(email)
                         .get_result::<String>(connection)
                     else {
-                        return Err(format!("201 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
                     };
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
                         contact.in_forward_list = forward_list;
                     };
+
+                    let reply = Message::ToContact {
+                        sender: user.email.clone(),
+                        receiver: contact_email,
+                        message: Rem::convert(&user, &command),
+                    };
+
+                    self.broadcast_tx
+                        .send(reply)
+                        .expect("Could not send to broadcast");
                 } else {
-                    return Err(format!("216 {tr_id}\r\n"));
+                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                 };
 
                 return Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")]);
@@ -163,7 +174,7 @@ impl AuthenticatedCommand for Rem {
                 .select(User::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             };
 
             if let Ok(contact) = Contact::belonging_to(&user_database)
@@ -175,7 +186,7 @@ impl AuthenticatedCommand for Rem {
                 if allow_list {
                     let allow_list = false;
                     if !contact.in_allow_list {
-                        return Err(format!("216 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -183,7 +194,7 @@ impl AuthenticatedCommand for Rem {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(contact_email) {
@@ -194,7 +205,7 @@ impl AuthenticatedCommand for Rem {
                 if block_list {
                     let block_list = false;
                     if !contact.in_block_list {
-                        return Err(format!("216 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                     }
 
                     if diesel::update(&contact)
@@ -202,15 +213,26 @@ impl AuthenticatedCommand for Rem {
                         .execute(connection)
                         .is_err()
                     {
-                        return Err(format!("603 {tr_id}\r\n"));
+                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(contact_email) {
                         contact.in_block_list = block_list;
                     };
+
+                    let nln_command = Nln::convert(&user, &command);
+                    let thread_message = Message::ToContact {
+                        sender: user.email.clone(),
+                        receiver: contact_email.to_string(),
+                        message: nln_command,
+                    };
+
+                    self.broadcast_tx
+                        .send(thread_message)
+                        .expect("Could not send to broadcast");
                 }
             } else {
-                return Err(format!("216 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
             };
 
             return Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")]);

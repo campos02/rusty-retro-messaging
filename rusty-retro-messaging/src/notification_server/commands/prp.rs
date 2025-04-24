@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::schema::users::dsl::{display_name, users};
 use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
 use diesel::{
@@ -17,18 +18,21 @@ impl Prp {
 }
 
 impl AuthenticatedCommand for Prp {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let parameter = args[2];
         let user_display_name = args[3];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if parameter == "MFN" {
@@ -38,7 +42,7 @@ impl AuthenticatedCommand for Prp {
                 .execute(connection)
                 .is_err()
             {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             user.display_name = user_display_name.to_string();

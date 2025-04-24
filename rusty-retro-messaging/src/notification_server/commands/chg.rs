@@ -1,16 +1,38 @@
-use super::traits::{
-    authenticated_command::AuthenticatedCommand, broadcasted_command::BroadcastedCommand,
+use super::{
+    fln::Fln,
+    traits::{
+        authenticated_command::AuthenticatedCommand, broadcasted_command::BroadcastedCommand,
+    },
 };
-use crate::models::transient::authenticated_user::AuthenticatedUser;
+use crate::{
+    error_command::ErrorCommand, message::Message,
+    models::transient::authenticated_user::AuthenticatedUser,
+};
+use tokio::sync::broadcast;
 
-pub struct Chg;
+pub struct Chg {
+    broadcast_tx: broadcast::Sender<Message>,
+    first_chg: bool,
+}
+
+impl Chg {
+    pub fn new(broadcast_tx: broadcast::Sender<Message>, first_chg: bool) -> Self {
+        Chg {
+            broadcast_tx,
+            first_chg,
+        }
+    }
+}
 
 impl AuthenticatedCommand for Chg {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
 
@@ -24,13 +46,13 @@ impl AuthenticatedCommand for Chg {
             "PHN" => (),
             "LUN" => (),
             "HDN" => (),
-            _ => return Err(format!("201 {tr_id}\r\n")),
+            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
         }
 
         user.presence = Some(args[2].to_string());
 
         let Ok(client_id) = args[3].parse() else {
-            return Err(format!("201 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
         };
 
         user.client_id = Some(client_id);
@@ -39,6 +61,60 @@ impl AuthenticatedCommand for Chg {
         } else {
             None
         };
+
+        for email in user.contacts.keys() {
+            if let Some(contact) = user.contacts.get(email) {
+                if user.blp == "BL" && !contact.in_allow_list {
+                    continue;
+                }
+
+                if contact.in_block_list {
+                    continue;
+                }
+            } else {
+                if user.blp == "BL" {
+                    continue;
+                }
+            }
+
+            if args[2] != "HDN" {
+                let nln_command = Chg::convert(&user, &command);
+                let thread_message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: email.clone(),
+                    message: nln_command,
+                };
+
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
+            } else {
+                let fln_command = Fln::convert(&user, &"".to_string());
+                let message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: email.clone(),
+                    message: fln_command,
+                };
+
+                self.broadcast_tx
+                    .send(message)
+                    .expect("Could not send to broadcast");
+
+                continue;
+            }
+
+            if self.first_chg {
+                let thread_message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: email.clone(),
+                    message: command.clone(),
+                };
+
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
+            }
+        }
 
         Ok(vec![command.to_string()])
     }

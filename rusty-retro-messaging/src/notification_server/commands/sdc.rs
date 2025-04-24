@@ -1,9 +1,14 @@
 use super::traits::command::Command;
+use crate::error_command::ErrorCommand;
 
 pub struct Sdc;
 
 impl Command for Sdc {
-    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
+    fn handle(
+        &self,
+        protocol_version: usize,
+        command: &String,
+    ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();

@@ -1,10 +1,15 @@
 use super::traits::command::Command;
+use crate::error_command::ErrorCommand;
 use std::env;
 
 pub struct Url;
 
 impl Command for Url {
-    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
+    fn handle(
+        &self,
+        protocol_version: usize,
+        command: &String,
+    ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();

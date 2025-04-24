@@ -1,9 +1,9 @@
-use super::traits::command::Command;
+use super::traits::broadcasted_command::BroadcastedCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Bye;
 
-impl Command for Bye {
+impl BroadcastedCommand for Bye {
     fn generate(
         &self,
         protocol_version: usize,

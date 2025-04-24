@@ -1,4 +1,5 @@
-use super::traits::command::Command;
+use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::schema::contacts::dsl::contacts;
 use crate::schema::group_members::contact_id as member_contact_id;
 use crate::schema::users::dsl::users;
@@ -20,56 +21,54 @@ use diesel::{
 
 pub struct Syn {
     pool: Pool<ConnectionManager<MysqlConnection>>,
-    pub authenticated_user: AuthenticatedUser,
 }
 
 impl Syn {
-    pub fn new(
-        pool: Pool<ConnectionManager<MysqlConnection>>,
-        authenticated_user: AuthenticatedUser,
-    ) -> Self {
-        Syn {
-            pool,
-            authenticated_user,
-        }
+    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+        Syn { pool }
     }
 }
 
-impl Command for Syn {
-    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
+impl AuthenticatedCommand for Syn {
+    fn handle(
+        &self,
+        protocol_version: usize,
+        command: &String,
+        user: &mut AuthenticatedUser,
+    ) -> Result<Vec<String>, ErrorCommand> {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let first_timestap = args[2];
         let second_timestamp = args[3];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
         };
 
-        let Ok(user) = users
-            .filter(email.eq(&self.authenticated_user.email))
+        let Ok(database_user) = users
+            .filter(email.eq(&user.email))
             .select(User::as_select())
             .get_result(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
         };
 
-        let gtc = &user.gtc;
+        let gtc = &database_user.gtc;
         let mut responses = vec![format!("GTC {gtc}\r\n")];
 
-        let blp = &user.blp;
-        self.authenticated_user.blp = blp.clone();
+        let blp = &database_user.blp;
+        user.blp = blp.clone();
         responses.push(format!("BLP {blp}\r\n"));
 
-        let display_name = &user.display_name;
-        self.authenticated_user.display_name = display_name.clone();
+        let display_name = &database_user.display_name;
+        user.display_name = display_name.clone();
         responses.push(format!("PRP MFN {display_name}\r\n"));
 
-        let Ok(user_groups) = Group::belonging_to(&user)
+        let Ok(user_groups) = Group::belonging_to(&database_user)
             .select(Group::as_select())
             .load(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
         };
 
         let number_of_groups = user_groups.len();
@@ -79,11 +78,11 @@ impl Command for Syn {
             responses.push(format!("LSG {name} {guid}\r\n"));
         }
 
-        let Ok(user_contacts) = Contact::belonging_to(&user)
+        let Ok(user_contacts) = Contact::belonging_to(&database_user)
             .select(Contact::as_select())
             .load(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
         };
 
         let number_of_contacts = user_contacts.len();
@@ -119,13 +118,12 @@ impl Command for Syn {
                 in_block_list: contact.in_block_list,
             };
 
-            self.authenticated_user
-                .contacts
+            user.contacts
                 .insert(transient_contact.email.clone(), transient_contact);
 
             // Make reverse list
             if Contact::belonging_to(&contact_user)
-                .filter(contact_id.eq(&user.id))
+                .filter(contact_id.eq(&database_user.id))
                 .filter(in_forward_list.eq(true))
                 .select(Contact::as_select())
                 .get_result(connection)

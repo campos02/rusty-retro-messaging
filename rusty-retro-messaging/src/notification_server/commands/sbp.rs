@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::users::dsl::users;
 use crate::{
@@ -25,18 +26,21 @@ impl Sbp {
 }
 
 impl AuthenticatedCommand for Sbp {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let parameter = args[3];
         let contact_display_name = args[4];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if parameter == "MFN" {
@@ -45,7 +49,7 @@ impl AuthenticatedCommand for Sbp {
                 .select(User::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             };
 
             let Ok(contact) = Contact::belonging_to(&user_database)
@@ -54,7 +58,7 @@ impl AuthenticatedCommand for Sbp {
                 .select(Contact::as_select())
                 .get_result(connection)
             else {
-                return Err(format!("208 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("208 {tr_id}\r\n")));
             };
 
             let Ok(contact_email) = users
@@ -62,7 +66,7 @@ impl AuthenticatedCommand for Sbp {
                 .select(email)
                 .get_result::<String>(connection)
             else {
-                return Err(format!("201 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
             };
 
             if diesel::update(&contact)
@@ -70,7 +74,7 @@ impl AuthenticatedCommand for Sbp {
                 .execute(connection)
                 .is_err()
             {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             if let Some(contact) = user.contacts.get_mut(&contact_email) {

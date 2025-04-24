@@ -1,4 +1,9 @@
-use super::traits::authentication_command::AuthenticationCommand;
+use super::{
+    joi::Joi,
+    traits::{
+        authentication_command::AuthenticationCommand, broadcasted_command::BroadcastedCommand,
+    },
+};
 use crate::{
     error_command::ErrorCommand,
     message::Message,
@@ -9,9 +14,9 @@ use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
 use tokio::sync::broadcast::{self, error::RecvError};
 
-pub struct Usr;
+pub struct Ans;
 
-impl AuthenticationCommand for Usr {
+impl AuthenticationCommand for Ans {
     async fn handle(
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
@@ -112,12 +117,11 @@ impl AuthenticationCommand for Usr {
             }
         }
 
-        let authenticated_user: AuthenticatedUser =
+        let mut authenticated_user: AuthenticatedUser =
             authenticated_user_result.expect("Could not get authenticated user");
         let protocol_version = protocol_version_result.expect("Could not get protocol version");
 
-        let user_email = &authenticated_user.email;
-        let user_display_name = &authenticated_user.display_name;
+        let mut replies: Vec<String> = Vec::new();
 
         {
             let mut principals = session
@@ -125,20 +129,48 @@ impl AuthenticationCommand for Usr {
                 .lock()
                 .expect("Could not get principals, mutex poisoned");
 
+            let count = principals.len();
+            let mut index = 1;
+
+            for principal in principals.to_vec() {
+                let email = principal.email;
+                let display_name = principal.display_name;
+
+                let mut iro_reply =
+                    format!("IRO {tr_id} {index} {count} {email} {display_name}\r\n");
+
+                if protocol_version >= 12 {
+                    if let Some(client_id) = principal.client_id {
+                        iro_reply = format!(
+                            "IRO {tr_id} {index} {count} {email} {display_name} {client_id}\r\n"
+                        );
+                    }
+                }
+
+                replies.push(iro_reply);
+                index += 1;
+            }
+
             principals.push(Principal {
                 email: user_email.to_string(),
                 display_name: authenticated_user.display_name.clone(),
-                client_id: authenticated_user.client_id,
+                client_id: authenticated_user.client_id.clone(),
             });
         }
 
-        Ok((
-            vec![format!(
-                "USR {tr_id} OK {user_email} {user_display_name}\r\n"
-            )],
-            protocol_version,
-            session,
-            authenticated_user,
-        ))
+        let joi = Joi.generate(protocol_version, &mut authenticated_user, tr_id);
+
+        let message = Message::ToPrincipals {
+            sender: user_email.to_string(),
+            message: URL_SAFE.encode(joi.as_bytes()),
+        };
+
+        session
+            .session_tx
+            .send(message)
+            .expect("Could not send to session");
+
+        replies.push(format!("ANS {tr_id} OK\r\n"));
+        Ok((replies, protocol_version, session, authenticated_user))
     }
 }

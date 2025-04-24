@@ -1,4 +1,5 @@
 use super::traits::authenticated_command::AuthenticatedCommand;
+use crate::error_command::ErrorCommand;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::groups::dsl::groups;
@@ -22,17 +23,20 @@ impl Adg {
 }
 
 impl AuthenticatedCommand for Adg {
-    fn handle_with_authenticated_user(
-        &mut self,
+    fn handle(
+        &self,
+        protocol_version: usize,
         command: &String,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, String> {
+    ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let group_name = args[2];
 
         let Ok(connection) = &mut self.pool.get() else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         let Ok(user_database) = users
@@ -40,7 +44,7 @@ impl AuthenticatedCommand for Adg {
             .select(User::as_select())
             .get_result(connection)
         else {
-            return Err(format!("603 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
         if Group::belonging_to(&user_database)
@@ -49,7 +53,7 @@ impl AuthenticatedCommand for Adg {
             .get_result(connection)
             .is_ok()
         {
-            return Err(format!("228 {tr_id}\r\n"));
+            return Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")));
         } else {
             let group_guid = guid_create::GUID::rand().to_string().to_lowercase();
 
@@ -62,7 +66,7 @@ impl AuthenticatedCommand for Adg {
                 .execute(connection)
                 .is_err()
             {
-                return Err(format!("603 {tr_id}\r\n"));
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             return Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")]);

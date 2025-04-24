@@ -1,4 +1,4 @@
-use super::traits::command::Command;
+use super::traits::broadcasted_command::BroadcastedCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use std::env;
 
@@ -7,7 +7,7 @@ pub struct Rng {
     pub cki_string: String,
 }
 
-impl Command for Rng {
+impl BroadcastedCommand for Rng {
     fn generate(
         &self,
         protocol_version: usize,

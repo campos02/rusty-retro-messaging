@@ -1,9 +1,14 @@
 use super::traits::command::Command;
+use crate::error_command::ErrorCommand;
 
 pub struct Ver;
 
 impl Command for Ver {
-    fn handle(&mut self, protocol_version: usize, command: &String) -> Result<Vec<String>, String> {
+    fn handle(
+        &self,
+        protocol_version: usize,
+        command: &String,
+    ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let versions = vec!["MSNP12", "MSNP11"];
@@ -17,6 +22,7 @@ impl Command for Ver {
                 }
             }
         }
-        Err(format!("VER {tr_id} 0\r\n"))
+
+        Err(ErrorCommand::Disconnect(format!("VER {tr_id} 0\r\n")))
     }
 }
