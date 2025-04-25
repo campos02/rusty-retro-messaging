@@ -18,6 +18,7 @@ use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
+use log::trace;
 use tokio::{
     io::AsyncReadExt,
     net::{TcpStream, tcp::WriteHalf},
@@ -130,7 +131,7 @@ impl NotificationServer {
             .collect();
 
         for message in messages {
-            println!("C: {message}");
+            trace!("C: {message}");
 
             if self.protocol_version.is_none() {
                 let mut handler = VerHandler::new();
@@ -186,7 +187,7 @@ impl NotificationServer {
             return Ok(());
         };
 
-        println!("Thread {sender}: {message}");
+        trace!("Thread {sender}: {message}");
         let mut handler = ThreadCommandHandler::new(
             self.broadcast_tx.clone(),
             self.authenticated_user

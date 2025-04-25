@@ -13,6 +13,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
+use log::trace;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, tcp::WriteHalf},
@@ -116,14 +117,14 @@ impl Switchboard {
                             .await
                             .expect("Could not send to client over socket");
 
-                        println!("S: {reply}");
+                        trace!("S: {reply}");
                         return Ok(());
                     };
 
                     let length = messages[0].len() + length;
 
                     if length > messages_bytes.len() {
-                        println!("Fetching more message data...");
+                        trace!("Fetching more message data...");
 
                         let mut buf = vec![0; 1664];
                         let Ok(received) = rd.read(&mut buf).await else {
@@ -228,14 +229,14 @@ impl Switchboard {
             return Ok(());
         }
 
-        println!("Thread {sender}: {command}");
+        trace!("Thread {sender}: {command}");
         match args[0] {
             "MSG" => {
                 wr.write_all(&message)
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "JOI" => {
@@ -243,7 +244,7 @@ impl Switchboard {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "BYE" => {
@@ -251,7 +252,7 @@ impl Switchboard {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
             _ => (),
         };

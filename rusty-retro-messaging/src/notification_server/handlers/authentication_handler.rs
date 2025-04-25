@@ -9,6 +9,7 @@ use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
+use log::warn;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub struct AuthenticationHandler {
@@ -79,12 +80,12 @@ impl CommandHandler for AuthenticationHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {err}");
+                    warn!("S: {err}");
                     return Err(ErrorCommand::Disconnect(err));
                 }
             },
 
-            _ => println!("Unmatched command before authentication: {command}"),
+            _ => warn!("Unmatched command before authentication: {command}"),
         }
 
         Ok(())

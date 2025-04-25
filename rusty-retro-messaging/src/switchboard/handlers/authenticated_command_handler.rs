@@ -10,6 +10,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
+use log::{trace, warn};
 use tokio::{
     io::AsyncWriteExt,
     net::tcp::WriteHalf,
@@ -50,9 +51,16 @@ impl CommandHandler for AuthenticatedCommandHandler {
             .expect("Could not decode client message from base64");
 
         let command = unsafe { str::from_utf8_unchecked(&bytes) };
+        let command = command
+            .lines()
+            .next()
+            .expect("Could not get command from client message")
+            .to_string()
+            + "\r\n";
+
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        println!("C: {command}");
+        trace!("C: {command}");
         match args[0] {
             "USR" => {
                 let tr_id = args[1];
@@ -62,7 +70,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
             }
 
             "ANS" => {
@@ -73,7 +81,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
             }
 
             "CAL" => {
@@ -105,7 +113,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
                 return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
             }
 
-            _ => println!("Unmatched command: {command}"),
+            _ => warn!("Unmatched command: {command}"),
         };
 
         Ok(())

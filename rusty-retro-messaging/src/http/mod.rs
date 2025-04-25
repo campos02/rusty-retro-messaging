@@ -14,6 +14,7 @@ use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server,
 };
+use log::{error, info};
 use std::env;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
@@ -55,13 +56,13 @@ pub async fn listen(
         .await
         .expect("Could not bind HTTP server");
 
-    println!("HTTP server listening on port 3000");
+    info!("HTTP server listening on port 3000");
 
     loop {
         let (socket, _remote_addr) = match listener.accept().await {
             Ok(l) => l,
             Err(error) => {
-                eprintln!("Could not get socket from accepted HTTP connection: {error}");
+                error!("Could not get socket from accepted HTTP connection: {error}");
                 continue;
             }
         };
@@ -81,7 +82,7 @@ pub async fn listen(
                 .serve_connection_with_upgrades(socket, hyper_service)
                 .await
             {
-                eprintln!("Failed to serve connection: {err:#}");
+                error!("Failed to serve connection: {err:#}");
             }
         });
     }

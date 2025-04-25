@@ -1,5 +1,6 @@
 use super::traits::command_handler::CommandHandler;
 use crate::{error_command::ErrorCommand, notification_server::commands::ver::Ver};
+use log::warn;
 use tokio::net::tcp::WriteHalf;
 
 pub struct VerHandler {
@@ -40,7 +41,7 @@ impl CommandHandler for VerHandler {
                 }
             }
 
-            _ => println!("Unmatched command before authentication: {command}"),
+            _ => warn!("Unmatched command before authentication: {command}"),
         }
 
         Ok(())

@@ -19,6 +19,7 @@ use diesel::{
 };
 use diesel::{QueryDsl, SelectableHelper};
 use email_address::EmailAddress;
+use log::trace;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -96,6 +97,8 @@ pub(crate) async fn register(
         ))
         .execute(connection)
         .expect("Could not insert new user");
+
+    trace!("{} registered", payload.email);
 
     (
         StatusCode::OK,

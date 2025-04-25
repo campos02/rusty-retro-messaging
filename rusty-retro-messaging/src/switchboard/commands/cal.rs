@@ -34,13 +34,6 @@ impl Command for Cal {
             .expect("Could not decode client message from base64");
 
         let command = unsafe { str::from_utf8_unchecked(&bytes) };
-        let command = command
-            .lines()
-            .next()
-            .expect("Could not get command from client message")
-            .to_string()
-            + "\r\n";
-
         let args: Vec<&str> = command.trim().split(' ').collect();
 
         let tr_id = args[1];

@@ -10,6 +10,7 @@ use crate::{
 };
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
+use log::{trace, warn};
 use tokio::{
     net::tcp::WriteHalf,
     sync::broadcast::{self},
@@ -44,9 +45,16 @@ impl CommandHandler for AuthenticationHandler {
             .expect("Could not decode client message from base64");
 
         let command = unsafe { str::from_utf8_unchecked(&bytes) };
+        let command = command
+            .lines()
+            .next()
+            .expect("Could not get command from client message")
+            .to_string()
+            + "\r\n";
+
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        println!("C: {command}");
+        trace!("C: {command}");
         match args[0] {
             "USR" => {
                 let (protocol_version, session, authenticated_user) =
@@ -77,7 +85,7 @@ impl CommandHandler for AuthenticationHandler {
                 self.session = Some(session);
                 self.authenticated_user = Some(authenticated_user);
             }
-            _ => println!("Unmatched command before authentication: {command}"),
+            _ => warn!("Unmatched command before authentication: {command}"),
         };
 
         Ok(())

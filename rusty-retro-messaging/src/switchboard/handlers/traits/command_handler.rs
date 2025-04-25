@@ -7,6 +7,7 @@ use crate::{
         session::Session,
     },
 };
+use log::{error, trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub trait CommandHandler {
@@ -29,7 +30,7 @@ pub trait CommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {reply}");
+                    trace!("S: {reply}");
                 }
                 Ok((protocol_version, session, authenticated_user))
             }
@@ -39,7 +40,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
                 Err(ErrorCommand::Command(err))
             }
 
@@ -48,7 +49,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                error!("S: {err}");
                 Err(ErrorCommand::Disconnect(err))
             }
         }
@@ -77,7 +78,7 @@ pub trait CommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {reply}");
+                    trace!("S: {reply}");
                 }
                 Ok(responses)
             }
@@ -87,7 +88,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
                 Err(ErrorCommand::Command(err))
             }
 
@@ -96,7 +97,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                error!("S: {err}");
                 Err(ErrorCommand::Disconnect(err))
             }
         }

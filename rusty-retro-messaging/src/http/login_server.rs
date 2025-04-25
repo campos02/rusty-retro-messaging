@@ -22,6 +22,7 @@ use diesel::{
     dsl::insert_into,
     r2d2::{ConnectionManager, Pool},
 };
+use log::trace;
 use regex::Regex;
 
 enum HeaderParsingError {
@@ -111,6 +112,8 @@ pub(crate) async fn login_server(
             ))
             .execute(connection)
             .expect("Could not insert token");
+
+        trace!("Generated token for {}", user.email);
 
         return Ok([(
             "Authentication-Info",

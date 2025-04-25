@@ -7,6 +7,7 @@ use crate::{
         command::Command,
     },
 };
+use log::{error, trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub trait CommandHandler {
@@ -30,7 +31,7 @@ pub trait CommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {reply}");
+                    trace!("S: {reply}");
                 }
                 Ok(responses)
             }
@@ -40,7 +41,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
                 Err(ErrorCommand::Command(err))
             }
 
@@ -49,7 +50,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                error!("S: {err}");
                 Err(ErrorCommand::Disconnect(err))
             }
         }
@@ -69,7 +70,7 @@ pub trait CommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {reply}");
+                    trace!("S: {reply}");
                 }
                 Ok((authenticated_user, contact_rx))
             }
@@ -79,7 +80,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
                 Err(ErrorCommand::Command(err))
             }
 
@@ -88,7 +89,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                error!("S: {err}");
                 Err(ErrorCommand::Disconnect(err))
             }
         }
@@ -108,7 +109,7 @@ pub trait CommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {reply}");
+                    trace!("S: {reply}");
                 }
                 Ok(responses)
             }
@@ -118,7 +119,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
                 Err(ErrorCommand::Command(err))
             }
 
@@ -127,7 +128,7 @@ pub trait CommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                error!("S: {err}");
                 Err(ErrorCommand::Disconnect(err))
             }
         }

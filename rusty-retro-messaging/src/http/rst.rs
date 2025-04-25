@@ -33,6 +33,7 @@ use diesel::{
     MysqlConnection, SelectableHelper,
     r2d2::{ConnectionManager, Pool},
 };
+use log::trace;
 use quick_xml::events::{BytesDecl, Event};
 
 enum ElementNotFoundError {
@@ -108,6 +109,8 @@ pub(crate) async fn rst(
         ))
         .execute(connection)
         .expect("Could not insert token");
+
+    trace!("Generated token for {}", user.email);
 
     let Ok(request_multiple_security_tokens) = envelope
         .body
@@ -356,6 +359,8 @@ pub(crate) async fn rst(
     writer
         .write_serializable("S:Envelope", &envelope)
         .expect("Could not serialize Envelope");
+
+    trace!("Serialized RST response for {}", user.email);
 
     String::from_utf8(buffer).expect("XML is not UTF-8")
 }

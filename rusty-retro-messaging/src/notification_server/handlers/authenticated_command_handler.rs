@@ -12,6 +12,7 @@ use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
+use log::{trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub struct AuthenticatedCommandHandler {
@@ -56,7 +57,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {err}");
+                warn!("S: {err}");
             }
 
             "SYN" => {
@@ -236,12 +237,12 @@ impl CommandHandler for AuthenticatedCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {reply}");
+                trace!("S: {reply}");
             }
 
             "OUT" => return Err(ErrorCommand::Disconnect("Client disconnected".to_string())),
 
-            _ => println!("Unmatched command: {command}"),
+            _ => warn!("Unmatched command: {command}"),
         };
 
         Ok(())

@@ -3,7 +3,9 @@ use diesel::{
     r2d2::{ConnectionManager, Pool},
 };
 use dotenvy::dotenv;
+use env_logger::Env;
 use error_command::ErrorCommand;
+use log::{error, info};
 use message::Message;
 use notification_server::notification_server::NotificationServer;
 use std::{collections::HashMap, env};
@@ -21,6 +23,7 @@ mod switchboard;
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let manager = ConnectionManager::<MysqlConnection>::new(database_url);
@@ -33,13 +36,13 @@ async fn main() {
         .await
         .expect("Could not bind Notification Server");
 
-    println!("Notification Server listening on port 1863");
+    info!("Notification Server listening on port 1863");
 
     let switchboard_listener = TcpListener::bind("0.0.0.0:1864")
         .await
         .expect("Could not bind Switchboard");
 
-    println!("Switchboard listening on port 1864");
+    info!("Switchboard listening on port 1864");
 
     let (tx, mut rx) = broadcast::channel::<Message>(64);
     tokio::spawn(http::listen(pool.clone(), tx.clone()));
@@ -54,7 +57,7 @@ async fn main() {
                 let (mut socket, _) = match client {
                     Ok(c) => c,
                     Err(error) => {
-                        eprintln!("Could not get socket from accepted Notification Server connection: {error}");
+                        error!("Could not get socket from accepted Notification Server connection: {error}");
                         continue;
                     }
                 };
@@ -66,18 +69,18 @@ async fn main() {
                     let mut connection = NotificationServer::new(pool, tx);
                     loop {
                         if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
-                            eprintln!("{error}");
+                            error!("{error}");
 
                             if connection.authenticated_user.is_some() {
                                 if let Err(error) = connection.broadcast_tx.send(Message::RemoveUser) {
-                                    eprintln!("Could not remove user from count: {error}");
+                                    error!("Could not remove user from count: {error}");
                                 }
                             }
 
                             if error != "User logged in in another computer" {
                                 if let Some(ref user) = connection.authenticated_user {
                                     if let Err(error) = connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())) {
-                                        eprintln!("Could not remove user tx: {error}");
+                                        error!("Could not remove user tx: {error}");
                                     }
                                     connection.send_fln_to_contacts().await;
                                 }
@@ -92,7 +95,7 @@ async fn main() {
                 let (mut socket, _) = match client {
                     Ok(c) => c,
                     Err(error) => {
-                        eprintln!("Could not get socket from accepted Switchboard connection: {error}");
+                        error!("Could not get socket from accepted Switchboard connection: {error}");
                         continue;
                     }
                 };
@@ -103,11 +106,11 @@ async fn main() {
                     let mut connection = Switchboard::new(tx);
                     loop {
                         if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
-                            eprintln!("{error}");
+                            error!("{error}");
 
                             if let Some(ref session) = connection.session {
                                 if let Err(error) = connection.broadcast_tx.send(Message::RemoveSession(session.session_id.clone())) {
-                                    eprintln!("Could not remove session: {error}");
+                                    error!("Could not remove session: {error}");
                                 }
                                 connection.send_bye_to_principals(false).await;
                             }
@@ -121,7 +124,7 @@ async fn main() {
                 let message = match message {
                     Ok(m) => m,
                     Err(error) => {
-                        eprintln!("Could not receive message from thread: {error}");
+                        error!("Could not receive message from thread: {error}");
                         continue;
                     }
                 };
@@ -130,7 +133,7 @@ async fn main() {
                     Message::GetTx(key) => {
                         let contact_tx = channels.get(&key);
                         if let Err(error) = tx.send(Message::Tx { key: key.clone(), value: contact_tx.cloned() }) {
-                            eprintln!("Could not send tx to {key}: {error}");
+                            error!("Could not send tx to {key}: {error}");
                         }
                     }
 
@@ -150,7 +153,7 @@ async fn main() {
                                 receiver: receiver.clone(),
                                 message
                             }) {
-                                eprintln!("Could not send message to {receiver}: {error}");
+                                error!("Could not send message to {receiver}: {error}");
                             }
                         } else {
                             if let Err(error) = tx.send(Message::UserDetails {
@@ -159,7 +162,7 @@ async fn main() {
                                 authenticated_user: None,
                                 protocol_version: None
                             }) {
-                                eprintln!("Could not send user details to {sender}: {error}");
+                                error!("Could not send user details to {sender}: {error}");
                             }
                         }
                     }
@@ -167,7 +170,7 @@ async fn main() {
                     Message::GetSession(key) => {
                         let session = sessions.get(&key);
                         if let Err(error) = tx.send(Message::Session { key: key.clone(), value: session.cloned() }) {
-                            eprintln!("Could not send session to {key}: {error}");
+                            error!("Could not send session to {key}: {error}");
                         }
                     }
 
@@ -181,7 +184,7 @@ async fn main() {
 
                     Message::GetUsers => {
                         if let Err(error) = tx.send(Message::UserCount(user_count)) {
-                            eprintln!("Could not send user count: {error}");
+                            error!("Could not send user count: {error}");
                         }
                     }
 
@@ -200,7 +203,7 @@ async fn main() {
                             authenticated_user,
                             protocol_version
                         }) {
-                            eprintln!("Could not send user details to {receiver}: {error}");
+                            error!("Could not send user details to {receiver}: {error}");
                         }
                     }
                     _ => ()

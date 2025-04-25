@@ -8,6 +8,7 @@ use crate::{
         notification_server::NotificationServer,
     },
 };
+use log::{trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub struct ThreadCommandHandler {
@@ -52,7 +53,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "NLN" => {
@@ -71,7 +72,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "FLN" => {
@@ -84,7 +85,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "UBX" => {
@@ -92,7 +93,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "CHG" => {
@@ -130,7 +131,7 @@ impl CommandHandler for ThreadCommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {command}");
+                    warn!("S: {command}");
                     return Ok(());
                 }
 
@@ -160,7 +161,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "REM" => {
@@ -168,7 +169,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
             }
 
             "RNG" => {
@@ -177,7 +178,7 @@ impl CommandHandler for ThreadCommandHandler {
                         .await
                         .expect("Could not send to client over socket");
 
-                    println!("S: {command}");
+                    trace!("S: {command}");
                 }
             }
 
@@ -186,7 +187,7 @@ impl CommandHandler for ThreadCommandHandler {
                     .await
                     .expect("Could not send to client over socket");
 
-                println!("S: {command}");
+                trace!("S: {command}");
                 return Err(ErrorCommand::Disconnect(
                     "User logged in in another computer".to_string(),
                 ));
