@@ -6,9 +6,9 @@ use crate::{
     notification_server::{
         commands::{fln::Fln, traits::thread_command::ThreadCommand},
         handlers::{
-            authentication_handler::AuthenticationHandler,
-            thread_command_handler::ThreadCommandHandler, traits::command_handler::CommandHandler,
-            user_command_handler::UserCommandHandler, ver_handler::VerHandler,
+            authentication_handler::AuthenticationHandler, command_handler::CommandHandler,
+            thread_command_handler::ThreadCommandHandler, user_command_handler::UserCommandHandler,
+            ver_handler::VerHandler,
         },
     },
 };

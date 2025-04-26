@@ -9,14 +9,7 @@ use crate::{
 use log::{error, trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
-pub trait CommandHandler {
-    async fn handle_command(
-        &mut self,
-        sender: String,
-        wr: &mut WriteHalf<'_>,
-        command: String,
-    ) -> Result<(), ErrorCommand>;
-
+pub trait CommandProcessor {
     async fn process_command(
         protocol_version: usize,
         wr: &mut WriteHalf<'_>,

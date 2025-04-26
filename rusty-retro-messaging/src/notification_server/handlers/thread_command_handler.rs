@@ -1,4 +1,4 @@
-use super::traits::command_handler::CommandHandler;
+use super::command_handler::CommandHandler;
 use crate::{
     error_command::ErrorCommand,
     message::Message,

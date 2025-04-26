@@ -1,4 +1,5 @@
-use super::traits::command_handler::CommandHandler;
+use super::command_handler::CommandHandler;
+use super::command_processor::CommandProcessor;
 use crate::{error_command::ErrorCommand, notification_server::commands::ver::Ver};
 use log::warn;
 use tokio::net::tcp::WriteHalf;

@@ -1,3 +1,4 @@
+use super::handlers::command_handler::CommandHandler;
 use crate::{
     Message,
     error_command::ErrorCommand,
@@ -7,7 +8,6 @@ use crate::{
         handlers::{
             authentication_handler::AuthenticationHandler,
             session_command_handler::SessionCommandHandler,
-            traits::command_handler::CommandHandler,
         },
         session::Session,
     },

@@ -10,13 +10,7 @@ use crate::{
 use log::{error, trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
-pub trait CommandHandler {
-    async fn handle_command(
-        &mut self,
-        wr: &mut WriteHalf<'_>,
-        base64_command: String,
-    ) -> Result<(), ErrorCommand>;
-
+pub trait CommandProcessor {
     async fn process_authentication_command(
         broadcast_tx: &broadcast::Sender<Message>,
         wr: &mut WriteHalf<'_>,
