@@ -1,6 +1,6 @@
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
-pub trait BroadcastedCommand {
+pub trait ThreadCommand {
     fn generate(
         &self,
         protocol_version: usize,

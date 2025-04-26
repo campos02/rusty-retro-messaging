@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::schema::users::dsl::{display_name, users};
 use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
@@ -17,7 +17,7 @@ impl Prp {
     }
 }
 
-impl AuthenticatedCommand for Prp {
+impl UserCommand for Prp {
     fn handle(
         &self,
         protocol_version: usize,

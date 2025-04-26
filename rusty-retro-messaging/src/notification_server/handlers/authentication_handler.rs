@@ -48,18 +48,18 @@ impl CommandHandler for AuthenticationHandler {
 
         match args[0] {
             "CVR" => {
-                Self::run_command(self.protocol_version, wr, &mut Cvr, &command).await?;
+                Self::process_command(self.protocol_version, wr, &mut Cvr, &command).await?;
             }
 
             "USR" => match args[3] {
                 "I" => {
                     let mut usr = UsrI::new(self.pool.clone());
-                    Self::run_command(self.protocol_version, wr, &mut usr, &command).await?;
+                    Self::process_command(self.protocol_version, wr, &mut usr, &command).await?;
                 }
 
                 "S" => {
                     let mut usr = UsrS::new(self.pool.clone());
-                    let (authenticated_user, contact_rx) = Self::run_authentication_command(
+                    let (authenticated_user, contact_rx) = Self::process_authentication_command(
                         self.protocol_version,
                         wr,
                         &self.broadcast_tx,

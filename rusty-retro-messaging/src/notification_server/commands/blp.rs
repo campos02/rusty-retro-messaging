@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::schema::users::blp;
 use crate::schema::users::dsl::users;
@@ -18,7 +18,7 @@ impl Blp {
     }
 }
 
-impl AuthenticatedCommand for Blp {
+impl UserCommand for Blp {
     fn handle(
         &self,
         protocol_version: usize,

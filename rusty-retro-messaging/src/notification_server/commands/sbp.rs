@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::schema::users::dsl::users;
@@ -25,7 +25,7 @@ impl Sbp {
     }
 }
 
-impl AuthenticatedCommand for Sbp {
+impl UserCommand for Sbp {
     fn handle(
         &self,
         protocol_version: usize,

@@ -1,7 +1,7 @@
 use super::{
-    enums::InvitationError,
+    invitation_error::InvitationError,
     rng::Rng,
-    traits::{broadcasted_command::BroadcastedCommand, command::Command},
+    traits::{command::Command, thread_command::ThreadCommand},
 };
 use crate::{
     error_command::ErrorCommand, message::Message,

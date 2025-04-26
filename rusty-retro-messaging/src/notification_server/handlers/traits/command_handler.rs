@@ -3,8 +3,7 @@ use crate::{
     message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::traits::{
-        authenticated_command::AuthenticatedCommand, authentication_command::AuthenticationCommand,
-        command::Command,
+        authentication_command::AuthenticationCommand, command::Command, user_command::UserCommand,
     },
 };
 use log::{error, trace, warn};
@@ -18,7 +17,7 @@ pub trait CommandHandler {
         command: String,
     ) -> Result<(), ErrorCommand>;
 
-    async fn run_command(
+    async fn process_command(
         protocol_version: usize,
         wr: &mut WriteHalf<'_>,
         command: &mut impl Command,
@@ -56,7 +55,7 @@ pub trait CommandHandler {
         }
     }
 
-    async fn run_authentication_command(
+    async fn process_authentication_command(
         protocol_version: usize,
         wr: &mut WriteHalf<'_>,
         broadcast_tx: &broadcast::Sender<Message>,
@@ -95,11 +94,11 @@ pub trait CommandHandler {
         }
     }
 
-    async fn run_authenticated_command(
+    async fn process_user_command(
         protocol_version: usize,
-        authenticated_user: &mut AuthenticatedUser,
         wr: &mut WriteHalf<'_>,
-        command: &mut impl AuthenticatedCommand,
+        authenticated_user: &mut AuthenticatedUser,
+        command: &mut impl UserCommand,
         message: &String,
     ) -> Result<Vec<String>, ErrorCommand> {
         match command.handle(protocol_version, &message, authenticated_user) {

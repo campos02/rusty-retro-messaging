@@ -17,7 +17,7 @@ pub trait CommandHandler {
         base64_command: String,
     ) -> Result<(), ErrorCommand>;
 
-    async fn run_authentication_command(
+    async fn process_authentication_command(
         broadcast_tx: &broadcast::Sender<Message>,
         wr: &mut WriteHalf<'_>,
         command: &mut impl AuthenticationCommand,
@@ -55,7 +55,7 @@ pub trait CommandHandler {
         }
     }
 
-    async fn run_authenticated_command(
+    async fn process_user_command(
         protocol_version: usize,
         authenticated_user: &mut AuthenticatedUser,
         session: &mut Session,

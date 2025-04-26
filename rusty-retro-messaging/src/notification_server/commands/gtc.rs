@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::schema::users::dsl::users;
 use crate::schema::users::gtc;
@@ -18,7 +18,7 @@ impl Gtc {
     }
 }
 
-impl AuthenticatedCommand for Gtc {
+impl UserCommand for Gtc {
     fn handle(
         &self,
         protocol_version: usize,

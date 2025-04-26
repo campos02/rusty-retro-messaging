@@ -27,7 +27,7 @@ impl CommandHandler for VerHandler {
 
         match args[0] {
             "VER" => {
-                let responses = Self::run_command(0, wr, &mut Ver, &command).await?;
+                let responses = Self::process_command(0, wr, &mut Ver, &command).await?;
                 let reply = &responses[0];
 
                 let args: Vec<&str> = reply.trim().split(' ').collect();

@@ -1,9 +1,9 @@
-use super::traits::broadcasted_command::BroadcastedCommand;
+use super::traits::thread_command::ThreadCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Iln;
 
-impl BroadcastedCommand for Iln {
+impl ThreadCommand for Iln {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let args: Vec<&str> = command.trim().split(' ').collect();
 

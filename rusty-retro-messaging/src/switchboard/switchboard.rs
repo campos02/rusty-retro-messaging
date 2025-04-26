@@ -3,10 +3,11 @@ use crate::{
     error_command::ErrorCommand,
     models::transient::authenticated_user::AuthenticatedUser,
     switchboard::{
-        commands::{bye::Bye, traits::broadcasted_command::BroadcastedCommand},
+        commands::{bye::Bye, traits::thread_command::ThreadCommand},
         handlers::{
-            authenticated_command_handler::AuthenticatedCommandHandler,
-            authentication_handler::AuthenticationHandler, traits::command_handler::CommandHandler,
+            authentication_handler::AuthenticationHandler,
+            session_command_handler::SessionCommandHandler,
+            traits::command_handler::CommandHandler,
         },
         session::Session,
     },
@@ -176,7 +177,7 @@ impl Switchboard {
                 continue;
             }
 
-            let mut handler = AuthenticatedCommandHandler::new(
+            let mut handler = SessionCommandHandler::new(
                 self.broadcast_tx.clone(),
                 self.session.clone().expect("Could not get session"),
                 self.authenticated_user

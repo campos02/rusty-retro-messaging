@@ -1,15 +1,14 @@
-use super::enums::ContactVerificationError;
+use super::contact_verification_error::ContactVerificationError;
 use crate::{
     Message,
     error_command::ErrorCommand,
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::{
-        commands::{fln::Fln, traits::broadcasted_command::BroadcastedCommand},
+        commands::{fln::Fln, traits::thread_command::ThreadCommand},
         handlers::{
-            authenticated_command_handler::AuthenticatedCommandHandler,
             authentication_handler::AuthenticationHandler,
             thread_command_handler::ThreadCommandHandler, traits::command_handler::CommandHandler,
-            ver_handler::VerHandler,
+            user_command_handler::UserCommandHandler, ver_handler::VerHandler,
         },
     },
 };
@@ -156,7 +155,7 @@ impl NotificationServer {
                 continue;
             }
 
-            let mut handler = AuthenticatedCommandHandler::new(
+            let mut handler = UserCommandHandler::new(
                 self.pool.clone(),
                 self.broadcast_tx.clone(),
                 self.authenticated_user

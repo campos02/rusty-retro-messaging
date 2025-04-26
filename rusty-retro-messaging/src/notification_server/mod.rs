@@ -1,4 +1,4 @@
 mod commands;
-mod enums;
+mod contact_verification_error;
 mod handlers;
 pub mod notification_server;

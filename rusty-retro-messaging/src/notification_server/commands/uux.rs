@@ -1,7 +1,5 @@
 use super::{
-    traits::{
-        authenticated_command::AuthenticatedCommand, broadcasted_command::BroadcastedCommand,
-    },
+    traits::{thread_command::ThreadCommand, user_command::UserCommand},
     ubx::Ubx,
 };
 use crate::{
@@ -21,7 +19,7 @@ impl Uux {
     }
 }
 
-impl AuthenticatedCommand for Uux {
+impl UserCommand for Uux {
     fn handle(
         &self,
         protocol_version: usize,
@@ -72,7 +70,7 @@ impl AuthenticatedCommand for Uux {
     }
 }
 
-impl BroadcastedCommand for Uux {
+impl ThreadCommand for Uux {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let mut command_lines = command.lines();
         let args: Vec<&str> = command_lines

@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
@@ -22,7 +22,7 @@ impl Xfr {
     }
 }
 
-impl AuthenticatedCommand for Xfr {
+impl UserCommand for Xfr {
     fn handle(
         &self,
         protocol_version: usize,

@@ -15,21 +15,21 @@ use diesel::{
 use log::{trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
-pub struct AuthenticatedCommandHandler {
+pub struct UserCommandHandler {
     pool: Pool<ConnectionManager<MysqlConnection>>,
     broadcast_tx: broadcast::Sender<Message>,
     pub authenticated_user: AuthenticatedUser,
     protocol_version: usize,
 }
 
-impl AuthenticatedCommandHandler {
+impl UserCommandHandler {
     pub fn new(
         pool: Pool<ConnectionManager<MysqlConnection>>,
         broadcast_tx: broadcast::Sender<Message>,
         authenticated_user: AuthenticatedUser,
         protocol_version: usize,
     ) -> Self {
-        AuthenticatedCommandHandler {
+        UserCommandHandler {
             pool,
             broadcast_tx,
             authenticated_user,
@@ -38,7 +38,7 @@ impl AuthenticatedCommandHandler {
     }
 }
 
-impl CommandHandler for AuthenticatedCommandHandler {
+impl CommandHandler for UserCommandHandler {
     async fn handle_command(
         &mut self,
         sender: String,
@@ -62,10 +62,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "SYN" => {
                 let mut syn = Syn::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut syn,
                     &command,
                 )
@@ -73,21 +73,21 @@ impl CommandHandler for AuthenticatedCommandHandler {
             }
 
             "GCF" => {
-                Self::run_command(self.protocol_version, wr, &mut Gcf, &command).await?;
+                Self::process_command(self.protocol_version, wr, &mut Gcf, &command).await?;
             }
 
             "URL" => {
-                Self::run_command(self.protocol_version, wr, &mut Url, &command).await?;
+                Self::process_command(self.protocol_version, wr, &mut Url, &command).await?;
             }
 
             "CHG" => {
                 let first_chg = self.authenticated_user.presence.is_none();
                 let mut chg = Chg::new(self.broadcast_tx.clone(), first_chg);
 
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut chg,
                     &command,
                 )
@@ -97,10 +97,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
             "UUX" => {
                 let mut uux = Uux::new(self.broadcast_tx.clone());
 
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut uux,
                     &command,
                 )
@@ -109,10 +109,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "PRP" => {
                 let mut prp = Prp::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut prp,
                     &command,
                 )
@@ -121,10 +121,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "SBP" => {
                 let mut sbp = Sbp::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut sbp,
                     &command,
                 )
@@ -132,15 +132,15 @@ impl CommandHandler for AuthenticatedCommandHandler {
             }
 
             "SDC" => {
-                Self::run_command(self.protocol_version, wr, &mut Sdc, &command).await?;
+                Self::process_command(self.protocol_version, wr, &mut Sdc, &command).await?;
             }
 
             "ADC" => {
                 let mut adc = Adc::new(self.pool.clone(), self.broadcast_tx.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut adc,
                     &command,
                 )
@@ -149,10 +149,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "REM" => {
                 let mut rem = Rem::new(self.pool.clone(), self.broadcast_tx.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut rem,
                     &command,
                 )
@@ -161,10 +161,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "ADG" => {
                 let mut adg = Adg::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut adg,
                     &command,
                 )
@@ -173,10 +173,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "RMG" => {
                 let mut rmg = Rmg::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut rmg,
                     &command,
                 )
@@ -185,10 +185,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "REG" => {
                 let mut reg = Reg::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut reg,
                     &command,
                 )
@@ -197,10 +197,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "BLP" => {
                 let mut blp = Blp::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut blp,
                     &command,
                 )
@@ -209,10 +209,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "GTC" => {
                 let mut gtc = Gtc::new(self.pool.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut gtc,
                     &command,
                 )
@@ -221,10 +221,10 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "XFR" => {
                 let mut xfr = Xfr::new(self.broadcast_tx.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
-                    &mut self.authenticated_user,
                     wr,
+                    &mut self.authenticated_user,
                     &mut xfr,
                     &command,
                 )

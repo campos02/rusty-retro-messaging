@@ -1,6 +1,6 @@
 use super::fln::Fln;
-use super::traits::authenticated_command::AuthenticatedCommand;
-use super::traits::broadcasted_command::BroadcastedCommand;
+use super::traits::thread_command::ThreadCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::message::Message;
 use crate::models::group::Group;
@@ -42,7 +42,7 @@ impl Adc {
     }
 }
 
-impl AuthenticatedCommand for Adc {
+impl UserCommand for Adc {
     fn handle(
         &self,
         protocol_version: usize,
@@ -278,7 +278,7 @@ impl AuthenticatedCommand for Adc {
     }
 }
 
-impl BroadcastedCommand for Adc {
+impl ThreadCommand for Adc {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let _ = command;
         let user_email = &user.email;

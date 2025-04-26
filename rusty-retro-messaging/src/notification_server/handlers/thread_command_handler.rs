@@ -4,7 +4,7 @@ use crate::{
     message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::{
-        commands::{iln::Iln, nln::Nln, traits::broadcasted_command::BroadcastedCommand, ubx::Ubx},
+        commands::{iln::Iln, nln::Nln, traits::thread_command::ThreadCommand, ubx::Ubx},
         notification_server::NotificationServer,
     },
 };

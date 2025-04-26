@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
@@ -22,7 +22,7 @@ impl Rmg {
     }
 }
 
-impl AuthenticatedCommand for Rmg {
+impl UserCommand for Rmg {
     fn handle(
         &self,
         protocol_version: usize,

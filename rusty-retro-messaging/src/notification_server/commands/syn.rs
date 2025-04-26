@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::schema::contacts::dsl::contacts;
 use crate::schema::group_members::contact_id as member_contact_id;
@@ -29,7 +29,7 @@ impl Syn {
     }
 }
 
-impl AuthenticatedCommand for Syn {
+impl UserCommand for Syn {
     fn handle(
         &self,
         protocol_version: usize,

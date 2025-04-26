@@ -1,9 +1,9 @@
-use super::traits::broadcasted_command::BroadcastedCommand;
+use super::traits::thread_command::ThreadCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub struct Nln;
 
-impl BroadcastedCommand for Nln {
+impl ThreadCommand for Nln {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let _ = command;
 

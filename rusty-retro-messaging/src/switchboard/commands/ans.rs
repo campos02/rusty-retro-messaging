@@ -1,8 +1,6 @@
 use super::{
     joi::Joi,
-    traits::{
-        authentication_command::AuthenticationCommand, broadcasted_command::BroadcastedCommand,
-    },
+    traits::{authentication_command::AuthenticationCommand, thread_command::ThreadCommand},
 };
 use crate::{
     error_command::ErrorCommand,

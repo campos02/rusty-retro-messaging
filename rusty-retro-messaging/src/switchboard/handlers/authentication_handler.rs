@@ -58,7 +58,7 @@ impl CommandHandler for AuthenticationHandler {
         match args[0] {
             "USR" => {
                 let (protocol_version, session, authenticated_user) =
-                    Self::run_authentication_command(
+                    Self::process_authentication_command(
                         &self.broadcast_tx,
                         wr,
                         &mut Usr,
@@ -73,7 +73,7 @@ impl CommandHandler for AuthenticationHandler {
 
             "ANS" => {
                 let (protocol_version, session, authenticated_user) =
-                    Self::run_authentication_command(
+                    Self::process_authentication_command(
                         &self.broadcast_tx,
                         wr,
                         &mut Ans,

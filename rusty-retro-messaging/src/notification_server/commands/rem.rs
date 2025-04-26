@@ -1,6 +1,6 @@
 use super::nln::Nln;
-use super::traits::authenticated_command::AuthenticatedCommand;
-use super::traits::broadcasted_command::BroadcastedCommand;
+use super::traits::thread_command::ThreadCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::message::Message;
 use crate::models::group::Group;
@@ -35,7 +35,7 @@ impl Rem {
     }
 }
 
-impl AuthenticatedCommand for Rem {
+impl UserCommand for Rem {
     fn handle(
         &self,
         protocol_version: usize,
@@ -240,7 +240,7 @@ impl AuthenticatedCommand for Rem {
     }
 }
 
-impl BroadcastedCommand for Rem {
+impl ThreadCommand for Rem {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let _ = command;
         let user_email = &user.email;

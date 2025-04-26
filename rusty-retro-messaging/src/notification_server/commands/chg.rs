@@ -1,8 +1,6 @@
 use super::{
     fln::Fln,
-    traits::{
-        authenticated_command::AuthenticatedCommand, broadcasted_command::BroadcastedCommand,
-    },
+    traits::{thread_command::ThreadCommand, user_command::UserCommand},
 };
 use crate::{
     error_command::ErrorCommand, message::Message,
@@ -24,7 +22,7 @@ impl Chg {
     }
 }
 
-impl AuthenticatedCommand for Chg {
+impl UserCommand for Chg {
     fn handle(
         &self,
         protocol_version: usize,
@@ -120,7 +118,7 @@ impl AuthenticatedCommand for Chg {
     }
 }
 
-impl BroadcastedCommand for Chg {
+impl ThreadCommand for Chg {
     fn convert(user: &AuthenticatedUser, command: &String) -> String {
         let mut args = command.trim().split(' ');
         args.next();

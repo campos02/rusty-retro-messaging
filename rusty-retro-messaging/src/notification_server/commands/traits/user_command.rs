@@ -2,7 +2,7 @@ use crate::{
     error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
 };
 
-pub trait AuthenticatedCommand {
+pub trait UserCommand {
     fn handle(
         &self,
         protocol_version: usize,

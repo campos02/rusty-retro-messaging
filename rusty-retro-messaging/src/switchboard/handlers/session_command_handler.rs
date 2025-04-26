@@ -17,21 +17,21 @@ use tokio::{
     sync::broadcast::{self},
 };
 
-pub struct AuthenticatedCommandHandler {
+pub struct SessionCommandHandler {
     broadcast_tx: broadcast::Sender<Message>,
     pub session: Session,
     pub authenticated_user: AuthenticatedUser,
     protocol_version: usize,
 }
 
-impl AuthenticatedCommandHandler {
+impl SessionCommandHandler {
     pub fn new(
         broadcast_tx: broadcast::Sender<Message>,
         session: Session,
         authenticated_user: AuthenticatedUser,
         protocol_version: usize,
     ) -> Self {
-        AuthenticatedCommandHandler {
+        SessionCommandHandler {
             broadcast_tx,
             session,
             authenticated_user,
@@ -40,7 +40,7 @@ impl AuthenticatedCommandHandler {
     }
 }
 
-impl CommandHandler for AuthenticatedCommandHandler {
+impl CommandHandler for SessionCommandHandler {
     async fn handle_command(
         &mut self,
         wr: &mut WriteHalf<'_>,
@@ -86,7 +86,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
 
             "CAL" => {
                 let mut cal = Cal::new(self.broadcast_tx.clone());
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
                     &mut self.authenticated_user,
                     &mut self.session,
@@ -98,7 +98,7 @@ impl CommandHandler for AuthenticatedCommandHandler {
             }
 
             "MSG" => {
-                Self::run_authenticated_command(
+                Self::process_user_command(
                     self.protocol_version,
                     &mut self.authenticated_user,
                     &mut self.session,

@@ -1,4 +1,4 @@
-use super::traits::authenticated_command::AuthenticatedCommand;
+use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -22,7 +22,7 @@ impl Adg {
     }
 }
 
-impl AuthenticatedCommand for Adg {
+impl UserCommand for Adg {
     fn handle(
         &self,
         protocol_version: usize,
