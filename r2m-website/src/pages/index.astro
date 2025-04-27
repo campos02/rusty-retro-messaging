@@ -1,5 +1,6 @@
 ---
 import Layout from "../layouts/Layout.astro";
+const storageUrl = import.meta.env.WEBSITE_URL + '/storage';
 ---
 <Layout title="R²M">
 	<main>
@@ -20,13 +21,18 @@ import Layout from "../layouts/Layout.astro";
 			has most protocol features working.
 		</p>
 		<p>
-			The server is actually available for private testing, if you have a code you can register on the top right.
-			Please note that these accounts will likely be lost when the Polyproto integration takes effect.
+			The server is actually available for private testing, if you have a code you can register on the top right and we have
+			a couple patched installers <a href={storageUrl}>here</a>.
+			Please note that accounts created now may be lost when the Polyproto integration takes effect.
 		</p>
 		<h2>Open source</h2>
 		<p>
 			This project is to be completely open source, as such the source code is available
 			<a href="https://github.com/campos02/rusty-retro-messaging">here.</a>
+		</p>
+		<p class="disclaimer">
+			R²M is not affiliated with Microsoft in any way. It was created using publicly available documentation
+			written by third-parties reverse engineering MSNP.
 		</p>
 	</main>
 	<style>
@@ -51,6 +57,10 @@ import Layout from "../layouts/Layout.astro";
         a:hover {
             color: light-dark(var(--link-hover-color), var(--link-hover-color-dark));
         }
+
+		.disclaimer {
+			font-size: 0.9em;
+		}
 
 		@media (max-width: 1380px) {
 			main {
