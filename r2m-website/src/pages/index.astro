@@ -6,29 +6,26 @@ const storageUrl = import.meta.env.WEBSITE_URL + '/storage';
 	<main>
 		<h1>R²M</h1>
 		<p>
-			R²M, or Rusty Retro Messaging, is a third-party MSNP server written in Rust aiming to eventually become a federated
-			revival of MSN Messenger. This will be achieved by making use of
-			<a href="https://github.com/polyphony-chat">Polyproto</a> and its extensible nature.
-		</p>
-		<h2>Why federated?</h2>
-		<p>
-			A recurring issue in the revival scene is that servers have a strong network effect, as they can't communicate in a way
-			defined by MSNP. Federation will solve that exactly by allowing user-hosted instances to talk to each other.
+			R²M, or Rusty Retro Messaging, is a third-party MSNP server written in Rust.
 		</p>
 		<h2>Status of the project</h2>
 		<p>
-			Currently the MSNP server itself is in development. It supports MSNP11 and MSNP12, i.e. what MSN 7.0 and MSN 7.5 use, and
-			has most protocol features working.
+			It currently supports MSNP11 and MSNP12, i.e. what MSN 7.0 and MSN 7.5 use, and has most protocol features working, including
+			messaging and most contact actions.
 		</p>
 		<p>
-			The server is actually available for private testing, if you have a code you can register on the top right and we have
-			a couple patched installers <a href={storageUrl}>here</a>.
-			Please note that accounts created now may be lost when the Polyproto integration takes effect.
+			The server is actually available for private testing, if you have a code you can register on the top right and use
+			one of the patched installers <a href={storageUrl}>here</a>. Or you can point your client to this same domain.
 		</p>
 		<h2>Open source</h2>
 		<p>
 			This project is to be completely open source, as such the source code is available
 			<a href="https://github.com/campos02/rusty-retro-messaging">here.</a>
+		</p>
+		<h2>Future plans</h2>
+		<p>
+			Eventually, when <a href="https://github.com/polyphony-chat">Polyproto</a> is more mature, this project intends to use
+			it in order to turn into a federated service.
 		</p>
 		<p class="disclaimer">
 			R²M is not affiliated with Microsoft in any way. It was created using publicly available documentation
