@@ -28,9 +28,9 @@ impl UsrS {
         let mut payload = String::from("MIME-Version: 1.0\r\n");
         let timestamp = Utc::now().timestamp();
 
-        // Reversed in MSN for some reason
-        let member_id_high = user.puid & 0xffffffff;
-        let member_id_low = user.puid & 0xffffffff00000000;
+        // High and low 32 bits of PUID
+        let member_id_high = ((user.puid & 0xffffffff00000000) >> 32) as u32;
+        let member_id_low = (user.puid & 0xffffffff) as u32;
 
         payload.push_str("Content-Type: text/x-msmsgsprofile; charset=UTF-8\r\n");
         payload.push_str(format!("LoginTime: {timestamp}\r\n").as_str());
