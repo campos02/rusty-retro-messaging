@@ -6,7 +6,7 @@ pub trait UserCommand {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand>;
 }

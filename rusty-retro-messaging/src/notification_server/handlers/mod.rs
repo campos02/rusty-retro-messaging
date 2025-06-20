@@ -1,6 +1,5 @@
-pub mod authentication_handler;
-pub mod command_handler;
-mod command_processor;
-pub mod thread_command_handler;
-pub mod user_command_handler;
-pub mod ver_handler;
+pub mod handle_authentication_command;
+pub mod handle_thread_command;
+pub mod handle_user_command;
+pub mod handle_ver;
+mod process_command;

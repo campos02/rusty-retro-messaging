@@ -21,7 +21,7 @@ impl UserCommand for Prp {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;

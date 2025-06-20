@@ -5,11 +5,7 @@ use std::env;
 pub struct Url;
 
 impl Command for Url {
-    fn handle(
-        &self,
-        protocol_version: usize,
-        command: &String,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    fn handle(&self, protocol_version: usize, command: &str) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();

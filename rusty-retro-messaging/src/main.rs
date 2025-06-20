@@ -17,6 +17,7 @@ mod http;
 mod message;
 pub mod models;
 mod notification_server;
+mod receive_split;
 pub mod schema;
 mod switchboard;
 

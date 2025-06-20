@@ -26,7 +26,7 @@ impl UserCommand for Chg {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -105,7 +105,7 @@ impl UserCommand for Chg {
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
-                    message: command.clone(),
+                    message: command.to_owned(),
                 };
 
                 self.broadcast_tx
@@ -119,7 +119,7 @@ impl UserCommand for Chg {
 }
 
 impl ThreadCommand for Chg {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let mut args = command.trim().split(' ');
         args.next();
         args.next();

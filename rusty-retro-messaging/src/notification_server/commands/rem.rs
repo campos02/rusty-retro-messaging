@@ -39,7 +39,7 @@ impl UserCommand for Rem {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -108,9 +108,9 @@ impl UserCommand for Rem {
                     return Err(ErrorCommand::Command(format!("225 {tr_id}\r\n")));
                 }
 
-                return Ok(vec![format!(
+                Ok(vec![format!(
                     "REM {tr_id} {list} {contact_guid} {group_guid}\r\n"
-                )]);
+                )])
             } else {
                 let contact_guid = contact_email;
 
@@ -166,7 +166,7 @@ impl UserCommand for Rem {
                     return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                 };
 
-                return Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")]);
+                Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")])
             }
         } else {
             let Ok(user_database) = users
@@ -235,13 +235,13 @@ impl UserCommand for Rem {
                 return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
             };
 
-            return Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")]);
+            Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")])
         }
     }
 }
 
 impl ThreadCommand for Rem {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let _ = command;
         let user_email = &user.email;
 

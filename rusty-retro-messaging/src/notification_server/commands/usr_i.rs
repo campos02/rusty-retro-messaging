@@ -19,11 +19,7 @@ impl UsrI {
 }
 
 impl Command for UsrI {
-    fn handle(
-        &self,
-        protocol_version: usize,
-        command: &String,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    fn handle(&self, protocol_version: usize, command: &str) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
@@ -42,8 +38,8 @@ impl Command for UsrI {
             return Err(ErrorCommand::Disconnect(format!("911 {tr_id}\r\n")));
         }
 
-        return Ok(vec![format!(
+        Ok(vec![format!(
             "USR {tr_id} TWN S ct=1,rver=1,wp=FS_40SEC_0_COMPACT,lc=1,id=1\r\n"
-        )]);
+        )])
     }
 }

@@ -4,7 +4,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 pub struct Fln;
 
 impl ThreadCommand for Fln {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let _ = command;
         let email = &user.email;
 

@@ -4,7 +4,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 pub struct Ubx;
 
 impl ThreadCommand for Ubx {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let _ = command;
 
         let email = &user.email;

@@ -1,22 +1,19 @@
-use super::handlers::command_handler::CommandHandler;
+use crate::receive_split::receive_split;
+use crate::switchboard::handlers::handle_authentication_command::handle_authentication_command;
+use crate::switchboard::handlers::handle_session_command::handle_session_command;
 use crate::{
     Message,
     error_command::ErrorCommand,
     models::transient::authenticated_user::AuthenticatedUser,
     switchboard::{
         commands::{bye::Bye, traits::thread_command::ThreadCommand},
-        handlers::{
-            authentication_handler::AuthenticationHandler,
-            session_command_handler::SessionCommandHandler,
-        },
         session::Session,
     },
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
 use log::trace;
 use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
+    io::AsyncWriteExt,
     net::{TcpStream, tcp::WriteHalf},
     sync::broadcast::{self},
 };
@@ -42,8 +39,6 @@ impl Switchboard {
 
     pub async fn listen(&mut self, socket: &mut TcpStream) -> Result<(), ErrorCommand> {
         let (mut rd, mut wr) = socket.split();
-        let mut buf = vec![0; 1664];
-
         if self.session.is_some() {
             let session_rx = self
                 .session_rx
@@ -51,17 +46,8 @@ impl Switchboard {
                 .expect("Could not get session receiver");
 
             tokio::select! {
-                received = rd.read(&mut buf) => {
-                    let Ok(received) = received else {
-                        return Err(ErrorCommand::Disconnect("Could not read from client".to_string()));
-                    };
-
-                    if received == 0 {
-                        return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
-                    }
-
-                    let buf = &buf[..received];
-                    self.handle_client_commands(socket, buf.to_vec()).await?
+                messages = receive_split(&mut rd) => {
+                    self.handle_client_commands(&mut wr, messages?).await?
                 }
 
                 received = session_rx.recv() => {
@@ -69,20 +55,8 @@ impl Switchboard {
                 }
             }
         } else {
-            tokio::select! {
-                received = rd.read(&mut buf) => {
-                    let Ok(received) = received else {
-                        return Err(ErrorCommand::Disconnect("Could not read from client".to_string()));
-                    };
-
-                    if received == 0 {
-                        return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
-                    }
-
-                    let buf = &buf[..received];
-                    self.handle_client_commands(socket, buf.to_vec()).await?
-                }
-            }
+            let messages = receive_split(&mut rd).await?;
+            self.handle_client_commands(&mut wr, messages).await?;
         }
 
         Ok(())
@@ -90,107 +64,37 @@ impl Switchboard {
 
     async fn handle_client_commands(
         &mut self,
-        socket: &mut TcpStream,
-        mut messages_bytes: Vec<u8>,
+        wr: &mut WriteHalf<'_>,
+        messages: Vec<Vec<u8>>,
     ) -> Result<(), ErrorCommand> {
-        let (mut rd, mut wr) = socket.split();
-        let mut base64_messages: Vec<String> = Vec::new();
-
-        loop {
-            let messages_string = unsafe { str::from_utf8_unchecked(&messages_bytes) };
-            let messages: Vec<String> = messages_string
-                .lines()
-                .map(|line| line.to_string() + "\r\n")
-                .collect();
-
-            if messages.len() == 0 {
-                break;
-            }
-
-            let args: Vec<&str> = messages[0].trim().split(' ').collect();
-            match args[0] {
-                "MSG" => {
-                    let Ok(length) = args[3].parse::<usize>() else {
-                        let tr_id = args[1];
-                        let reply = format!("282 {tr_id}\r\n");
-
-                        wr.write_all(reply.as_bytes())
-                            .await
-                            .expect("Could not send to client over socket");
-
-                        trace!("S: {reply}");
-                        return Ok(());
-                    };
-
-                    let length = messages[0].len() + length;
-
-                    if length > messages_bytes.len() {
-                        trace!("Fetching more message data...");
-
-                        let mut buf = vec![0; 1664];
-                        let Ok(received) = rd.read(&mut buf).await else {
-                            return Err(ErrorCommand::Disconnect(
-                                "Could not read from client".to_string(),
-                            ));
-                        };
-
-                        if received == 0 {
-                            return Err(ErrorCommand::Disconnect(
-                                "Client disconnected".to_string(),
-                            ));
-                        }
-
-                        let mut buf = buf[..received].to_vec();
-                        messages_bytes.append(&mut buf);
-                        continue;
-                    }
-
-                    let new_bytes = messages_bytes[..length].to_vec();
-                    messages_bytes = messages_bytes[length..].to_vec();
-
-                    let base64_message = URL_SAFE.encode(&new_bytes);
-                    base64_messages.push(base64_message);
-                }
-
-                _ => {
-                    let new_bytes = messages_bytes[..messages[0].len()].to_vec();
-                    messages_bytes = messages_bytes[messages[0].len()..].to_vec();
-
-                    let base64_message = URL_SAFE.encode(&new_bytes);
-                    base64_messages.push(base64_message);
-                }
-            }
-        }
-
-        for base64_message in base64_messages {
+        for message in messages {
             if self.session.is_none() {
-                let mut handler = AuthenticationHandler::new(self.broadcast_tx.clone());
-                handler.handle_command(&mut wr, base64_message).await?;
+                let (protocol_version, session, authenticated_user) =
+                    handle_authentication_command(&self.broadcast_tx, wr, message).await?;
 
-                self.protocol_version = handler.protocol_version;
-                self.authenticated_user = handler.authenticated_user;
-                self.session = handler.session;
+                self.protocol_version = protocol_version;
+                self.authenticated_user = authenticated_user;
+                self.session = session;
 
                 if let Some(session) = &self.session {
                     self.session_rx = Some(session.session_tx.subscribe());
                 }
+
                 continue;
             }
 
-            let mut handler = SessionCommandHandler::new(
-                self.broadcast_tx.clone(),
-                self.session.clone().expect("Could not get session"),
-                self.authenticated_user
-                    .clone()
-                    .expect("Could not get authenticated user"),
+            handle_session_command(
                 self.protocol_version
                     .expect("Could not get protocol version"),
-            );
-
-            handler.handle_command(&mut wr, base64_message).await?;
-
-            self.authenticated_user = Some(handler.authenticated_user);
-            self.session = Some(handler.session);
+                self.authenticated_user
+                    .as_mut()
+                    .expect("Could not get authenticated user"),
+                self.session.as_mut().expect("Could not get session"),
+                &self.broadcast_tx,
+                wr,
+                message,
+            )
+            .await?;
         }
 
         Ok(())
@@ -204,10 +108,6 @@ impl Switchboard {
         let Message::ToPrincipals { sender, message } = message else {
             return Ok(());
         };
-
-        let message = URL_SAFE
-            .decode(message)
-            .expect("Could not decode base64 from session");
 
         let messages_string = unsafe { str::from_utf8_unchecked(&message) };
         let command = messages_string
@@ -262,12 +162,10 @@ impl Switchboard {
     }
 
     pub(crate) async fn send_bye_to_principals(&mut self, idling: bool) {
-        let user_email = self
+        let authenticated_user = self
             .authenticated_user
-            .as_ref()
-            .expect("Could not get authenticated user")
-            .email
-            .clone();
+            .as_mut()
+            .expect("Could not get authenticated user");
         {
             let mut principals = self
                 .session
@@ -279,7 +177,7 @@ impl Switchboard {
 
             let user_index = principals
                 .iter()
-                .position(|principal| principal.email == user_email)
+                .position(|principal| principal.email == authenticated_user.email)
                 .expect("Could not find user among principals");
 
             principals.swap_remove(user_index);
@@ -288,9 +186,7 @@ impl Switchboard {
         let mut bye_command = Bye.generate(
             self.protocol_version
                 .expect("Could not get protocol version"),
-            self.authenticated_user
-                .as_mut()
-                .expect("Could not get authenticated user"),
+            authenticated_user,
             "",
         );
 
@@ -299,8 +195,8 @@ impl Switchboard {
         }
 
         let message = Message::ToPrincipals {
-            sender: user_email,
-            message: URL_SAFE.encode(bye_command.as_bytes()),
+            sender: authenticated_user.email.clone(),
+            message: bye_command.as_bytes().to_vec(),
         };
 
         if let Some(ref session) = self.session {

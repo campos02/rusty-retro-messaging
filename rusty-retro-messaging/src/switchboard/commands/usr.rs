@@ -5,7 +5,6 @@ use crate::{
     models::transient::{authenticated_user::AuthenticatedUser, principal::Principal},
     switchboard::session::Session,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
 use tokio::sync::broadcast::{self, error::RecvError};
 
@@ -15,14 +14,10 @@ impl AuthenticationCommand for Usr {
     async fn handle(
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
-        base64_command: &String,
+        command: &Vec<u8>,
     ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), ErrorCommand> {
-        let bytes = URL_SAFE
-            .decode(base64_command.clone())
-            .expect("Could not decode client message from base64");
-
-        let command = unsafe { str::from_utf8_unchecked(&bytes) };
-        let args: Vec<&str> = command.trim().split(' ').collect();
+        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
         let user_email = args[2];

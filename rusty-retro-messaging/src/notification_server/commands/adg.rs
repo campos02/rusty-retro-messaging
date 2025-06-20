@@ -26,7 +26,7 @@ impl UserCommand for Adg {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -53,7 +53,7 @@ impl UserCommand for Adg {
             .get_result(connection)
             .is_ok()
         {
-            return Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")));
+            Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")))
         } else {
             let group_guid = guid_create::GUID::rand().to_string().to_lowercase();
 
@@ -69,7 +69,7 @@ impl UserCommand for Adg {
                 return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
-            return Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")]);
+            Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")])
         }
     }
 }

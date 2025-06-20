@@ -23,7 +23,7 @@ impl UserCommand for Uux {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -71,7 +71,7 @@ impl UserCommand for Uux {
 }
 
 impl ThreadCommand for Uux {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let mut command_lines = command.lines();
         let args: Vec<&str> = command_lines
             .next()

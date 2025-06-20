@@ -42,7 +42,7 @@ pub enum Message {
 
     ToPrincipals {
         sender: String,
-        message: String,
+        message: Vec<u8>,
     },
 
     SendUserDetails {

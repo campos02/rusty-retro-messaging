@@ -7,7 +7,6 @@ use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
 use tokio::sync::broadcast::{self, error::RecvError};
 
@@ -27,18 +26,13 @@ impl Command for Cal {
         protocol_version: usize,
         user: &mut AuthenticatedUser,
         session: &mut Session,
-        base64_command: &String,
+        command: &Vec<u8>,
     ) -> Result<Vec<String>, ErrorCommand> {
-        let bytes = URL_SAFE
-            .decode(base64_command.clone())
-            .expect("Could not decode client message from base64");
-
-        let command = unsafe { str::from_utf8_unchecked(&bytes) };
-        let args: Vec<&str> = command.trim().split(' ').collect();
+        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
         let email = args[2];
-        let session_id = session.session_id.clone();
 
         {
             let principals = session
@@ -116,7 +110,7 @@ impl Command for Cal {
         }
 
         let rng = Rng {
-            session_id: session_id.clone(),
+            session_id: session.session_id.clone(),
             cki_string: session.cki_string.clone(),
         };
 
@@ -131,6 +125,9 @@ impl Command for Cal {
             return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
         }
 
-        Ok(vec![format!("CAL {tr_id} RINGING {session_id}\r\n")])
+        Ok(vec![format!(
+            "CAL {tr_id} RINGING {}\r\n",
+            session.session_id
+        )])
     }
 }

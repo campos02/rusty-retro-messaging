@@ -33,12 +33,12 @@ impl UserCommand for Syn {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
-        let first_timestap = args[2];
+        let first_timestamp = args[2];
         let second_timestamp = args[3];
 
         let Ok(connection) = &mut self.pool.get() else {
@@ -180,7 +180,7 @@ impl UserCommand for Syn {
             responses.push(lst);
         }
 
-        responses.insert(0, format!("SYN {tr_id} {first_timestap} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));
+        responses.insert(0, format!("SYN {tr_id} {first_timestamp} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));
         Ok(responses)
     }
 }

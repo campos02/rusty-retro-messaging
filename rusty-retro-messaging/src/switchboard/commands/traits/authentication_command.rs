@@ -8,6 +8,6 @@ pub trait AuthenticationCommand {
     async fn handle(
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
-        base64_command: &String,
+        command: &Vec<u8>,
     ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), ErrorCommand>;
 }

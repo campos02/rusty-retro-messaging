@@ -46,7 +46,7 @@ impl UserCommand for Adc {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -185,26 +185,26 @@ impl UserCommand for Adc {
                 );
             };
 
-            if forward_list {
+            return if forward_list {
                 let contact_guid = contact_user.guid;
                 let contact_display_name = args[4];
 
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
-                    message: Adc::convert(&user, &command),
+                    message: Adc::convert(&user, command),
                 };
 
                 self.broadcast_tx
                     .send(message)
                     .expect("Could not send to broadcast");
 
-                return Ok(vec![format!(
+                Ok(vec![format!(
                     "ADC {tr_id} {list} N={contact_email} {contact_display_name} C={contact_guid}\r\n"
-                )]);
+                )])
             } else {
                 if block_list {
-                    let fln_command = Fln::convert(&user, &command);
+                    let fln_command = Fln::convert(&user, command);
                     let message = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email.clone(),
@@ -216,8 +216,8 @@ impl UserCommand for Adc {
                         .expect("Could not send to broadcast");
                 }
 
-                return Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")]);
-            }
+                Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")])
+            };
         // Add to group
         } else if contact_email.starts_with("C=") && list == "FL" {
             let contact_guid = contact_email.replace("C=", "");
@@ -279,7 +279,7 @@ impl UserCommand for Adc {
 }
 
 impl ThreadCommand for Adc {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let _ = command;
         let user_email = &user.email;
         let user_display_name = &user.display_name;

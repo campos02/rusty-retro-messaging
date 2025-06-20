@@ -3,7 +3,6 @@ use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
 };
-use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use core::str;
 
 pub struct Msg;
@@ -14,41 +13,33 @@ impl Command for Msg {
         protocol_version: usize,
         user: &mut AuthenticatedUser,
         session: &mut Session,
-        base64_command: &String,
+        command: &Vec<u8>,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-        let bytes = URL_SAFE
-            .decode(base64_command.clone())
-            .expect("Could not decode client message from base64");
-
-        let command = unsafe { str::from_utf8_unchecked(&bytes) };
-        let command = command
+        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let command_string = command_string
             .lines()
             .next()
             .expect("Could not get command from client message")
             .to_string()
             + "\r\n";
 
-        let args: Vec<&str> = command.trim().split(' ').collect();
+        let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let email = &user.email;
         let display_name = &user.display_name;
 
         let length = args[3];
-        let async_msg = format!("MSG {email} {display_name} {length}\r\n")
-            .as_bytes()
-            .to_vec();
+        let async_msg = str::into_boxed_bytes(Box::from(format!(
+            "MSG {email} {display_name} {length}\r\n"
+        )));
 
-        let mut bytes = URL_SAFE
-            .decode(base64_command)
-            .expect("Could not decode client message from base64");
-
-        bytes.splice(..command.as_bytes().len(), async_msg);
-        let base64_command = URL_SAFE.encode(bytes);
+        let mut command = command.clone();
+        command.splice(..command.len(), async_msg);
 
         let message = Message::ToPrincipals {
             sender: email.clone(),
-            message: base64_command,
+            message: command,
         };
 
         session

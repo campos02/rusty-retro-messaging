@@ -4,7 +4,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 pub struct Iln;
 
 impl ThreadCommand for Iln {
-    fn convert(user: &AuthenticatedUser, command: &String) -> String {
+    fn convert(user: &AuthenticatedUser, command: &str) -> String {
         let args: Vec<&str> = command.trim().split(' ').collect();
 
         let mut msn_object = String::from("");

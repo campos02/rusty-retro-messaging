@@ -9,6 +9,6 @@ pub trait Command {
         protocol_version: usize,
         user: &mut AuthenticatedUser,
         session: &mut Session,
-        base64_command: &String,
+        command: &Vec<u8>,
     ) -> Result<Vec<String>, ErrorCommand>;
 }

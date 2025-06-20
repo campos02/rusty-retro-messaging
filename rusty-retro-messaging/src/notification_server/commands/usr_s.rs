@@ -64,7 +64,7 @@ impl AuthenticationCommand for UsrS {
         &self,
         protocol_version: usize,
         broadcast_tx: &broadcast::Sender<Message>,
-        command: &String,
+        command: &str,
     ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), ErrorCommand> {
         let _ = protocol_version;
 
@@ -84,7 +84,7 @@ impl AuthenticationCommand for UsrS {
         };
 
         if Utc::now().naive_utc() <= result.valid_until {
-            let msp_auth = result.token.clone().replace("t=", "");
+            let msp_auth = result.token.replace("t=", "");
             let Ok(result) = users
                 .filter(id.eq(&result.user_id))
                 .select(User::as_select())

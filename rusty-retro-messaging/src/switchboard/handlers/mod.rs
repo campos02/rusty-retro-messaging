@@ -1,4 +1,3 @@
-pub mod authentication_handler;
-pub mod command_handler;
-mod command_processor;
-pub mod session_command_handler;
+pub mod handle_authentication_command;
+pub mod handle_session_command;
+mod process_command;

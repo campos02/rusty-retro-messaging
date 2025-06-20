@@ -9,6 +9,6 @@ pub trait AuthenticationCommand {
         &self,
         protocol_version: usize,
         broadcast_tx: &broadcast::Sender<Message>,
-        command: &String,
+        command: &str,
     ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), ErrorCommand>;
 }

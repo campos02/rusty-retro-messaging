@@ -4,11 +4,7 @@ use crate::error_command::ErrorCommand;
 pub struct Ver;
 
 impl Command for Ver {
-    fn handle(
-        &self,
-        protocol_version: usize,
-        command: &String,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    fn handle(&self, protocol_version: usize, command: &str) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let versions = vec!["MSNP12", "MSNP11"];

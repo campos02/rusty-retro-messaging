@@ -26,7 +26,7 @@ impl UserCommand for Rmg {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -68,9 +68,9 @@ impl UserCommand for Rmg {
                     return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
             }
-            return Ok(vec![format!("RMG {tr_id} 1 {group_guid}\r\n")]);
+            Ok(vec![format!("RMG {tr_id} 1 {group_guid}\r\n")])
         } else {
-            return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
+            Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")))
         }
     }
 }

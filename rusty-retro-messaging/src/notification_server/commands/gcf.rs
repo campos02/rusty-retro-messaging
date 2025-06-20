@@ -4,20 +4,15 @@ use crate::error_command::ErrorCommand;
 pub struct Gcf;
 
 impl Command for Gcf {
-    fn handle(
-        &self,
-        protocol_version: usize,
-        command: &String,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    fn handle(&self, protocol_version: usize, command: &str) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
 
-        let mut payload = format!(r#"<?xml version= "1.0" encoding="utf-8" ?>"#);
+        let mut payload = r#"<?xml version= "1.0" encoding="utf-8" ?>"#.to_string();
         payload.push_str(
-            format!(r#"<config><shield><cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " />"#)
-                .as_str(),
+            r#"<config><shield><cli maj="7" min="0" minbld="0" maxbld="9999" deny=" " />"#,
         );
         payload.push_str("</shield><block></block></config>");
 

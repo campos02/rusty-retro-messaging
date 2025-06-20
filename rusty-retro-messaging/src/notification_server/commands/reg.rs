@@ -24,7 +24,7 @@ impl UserCommand for Reg {
     fn handle(
         &self,
         protocol_version: usize,
-        command: &String,
+        command: &str,
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
@@ -69,11 +69,11 @@ impl UserCommand for Reg {
                 return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
-            return Ok(vec![format!(
+            Ok(vec![format!(
                 "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"
-            )]);
+            )])
         } else {
-            return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
+            Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")))
         }
     }
 }
