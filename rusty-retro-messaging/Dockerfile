@@ -1,7 +1,7 @@
 FROM rust
 
 RUN apt update
-RUN apt install -y libmariadb-dev
+RUN apt install -y libmariadb-dev cmake
 
 RUN cargo install diesel_cli --no-default-features --features mysql
 
