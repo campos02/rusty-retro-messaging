@@ -35,7 +35,7 @@ impl Command for Msg {
         )));
 
         let mut command = command.clone();
-        command.splice(..command.len(), async_msg);
+        command.splice(..command_string.len(), async_msg);
 
         let message = Message::ToPrincipals {
             sender: email.clone(),
