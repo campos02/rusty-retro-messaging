@@ -5,18 +5,17 @@ use crate::notification_server::handlers::handle_user_command::handle_user_comma
 use crate::notification_server::handlers::handle_ver::handle_ver;
 use crate::receive_split::receive_split;
 use crate::{
-    Message,
     error_command::ErrorCommand,
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{fln::Fln, traits::thread_command::ThreadCommand},
+    Message,
 };
 use diesel::{
-    MysqlConnection,
     r2d2::{ConnectionManager, Pool},
+    MysqlConnection,
 };
-use log::trace;
 use tokio::{
-    net::{TcpStream, tcp::WriteHalf},
+    net::{tcp::WriteHalf, TcpStream},
     sync::broadcast,
 };
 
@@ -119,8 +118,6 @@ impl NotificationServer {
         else {
             return Ok(());
         };
-
-        trace!("Thread {sender}: {message}");
 
         handle_thread_command(
             self.protocol_version
