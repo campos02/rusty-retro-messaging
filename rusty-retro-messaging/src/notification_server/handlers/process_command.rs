@@ -100,8 +100,17 @@ pub async fn process_user_command(
                     .await
                     .expect("Could not send to client over socket");
 
-                trace!("S: {reply}");
+                if reply.starts_with("XFR") {
+                    let args: Vec<&str> = reply.split(' ').collect();
+                    trace!(
+                        "S: {} {} {} {} {} xxxxx\r\n",
+                        args[0], args[1], args[2], args[3], args[4]
+                    );
+                } else {
+                    trace!("S: {reply}");
+                }
             }
+
             Ok(responses)
         }
 

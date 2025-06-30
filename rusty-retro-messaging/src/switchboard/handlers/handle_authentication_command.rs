@@ -29,13 +29,12 @@ pub async fn handle_authentication_command(
         + "\r\n";
 
     let args: Vec<&str> = command_string.trim().split(' ').collect();
-    trace!("C: {command_string}");
-
     match args[0] {
         "USR" => {
             let (protocol_version, session, authenticated_user) =
                 process_authentication_command(&broadcast_tx, wr, &Usr, &command).await?;
 
+            trace!("C: {} {} {} xxxxx\r\n", args[0], args[1], args[2]);
             return Ok((
                 Some(protocol_version),
                 Some(session),
@@ -47,6 +46,7 @@ pub async fn handle_authentication_command(
             let (protocol_version, session, authenticated_user) =
                 process_authentication_command(&broadcast_tx, wr, &Ans, &command).await?;
 
+            trace!("C: {} {} {} xxxxx\r\n", args[0], args[1], args[2]);
             return Ok((
                 Some(protocol_version),
                 Some(session),

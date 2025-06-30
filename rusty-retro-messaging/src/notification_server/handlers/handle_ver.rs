@@ -1,6 +1,6 @@
 use crate::notification_server::handlers::process_command::process_command;
 use crate::{error_command::ErrorCommand, notification_server::commands::ver::Ver};
-use log::warn;
+use log::{trace, warn};
 use tokio::net::tcp::WriteHalf;
 
 pub async fn handle_ver(
@@ -9,6 +9,7 @@ pub async fn handle_ver(
 ) -> Result<Option<usize>, ErrorCommand> {
     let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
     let args: Vec<&str> = command.trim().split(' ').collect();
+    trace!("C: {command}");
 
     match args[0] {
         "VER" => {

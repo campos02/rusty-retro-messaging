@@ -10,7 +10,6 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{fln::Fln, traits::thread_command::ThreadCommand},
 };
-use core::str;
 use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
@@ -69,11 +68,6 @@ impl NotificationServer {
         messages: Vec<Vec<u8>>,
     ) -> Result<(), ErrorCommand> {
         for message in messages {
-            trace!(
-                "C: {}",
-                str::from_utf8(&message).expect("Command contained invalid UTF-8")
-            );
-
             if self.protocol_version.is_none() {
                 self.protocol_version = handle_ver(wr, message).await?;
                 continue;

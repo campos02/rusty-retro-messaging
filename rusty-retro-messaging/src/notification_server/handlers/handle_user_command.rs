@@ -27,6 +27,7 @@ pub async fn handle_user_command(
 ) -> Result<(), ErrorCommand> {
     let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
     let args: Vec<&str> = command.trim().split(' ').collect();
+    trace!("C: {command}");
 
     match args[0] {
         "USR" => {

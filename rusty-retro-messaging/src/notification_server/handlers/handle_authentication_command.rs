@@ -9,7 +9,7 @@ use diesel::{
     MysqlConnection,
     r2d2::{ConnectionManager, Pool},
 };
-use log::warn;
+use log::{trace, warn};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_authentication_command(
@@ -30,16 +30,23 @@ pub async fn handle_authentication_command(
 
     match args[0] {
         "CVR" => {
+            trace!("C: {command}");
             process_command(protocol_version, wr, &Cvr, &command).await?;
         }
 
         "USR" => match args[3] {
             "I" => {
+                trace!("C: {command}");
                 let usr = UsrI::new(pool.clone());
                 process_command(protocol_version, wr, &usr, &command).await?;
             }
 
             "S" => {
+                trace!(
+                    "C: {} {} {} {} t=xxxxx\r\n",
+                    args[0], args[1], args[2], args[3]
+                );
+
                 let usr = UsrS::new(pool.clone());
                 let (authenticated_user, contact_rx) = process_authentication_command(
                     protocol_version,
@@ -54,6 +61,7 @@ pub async fn handle_authentication_command(
             }
 
             _ => {
+                trace!("C: {command}");
                 let tr_id = args[1];
                 let err = format!("911 {tr_id}\r\n");
 
