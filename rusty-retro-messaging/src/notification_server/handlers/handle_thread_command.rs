@@ -158,7 +158,10 @@ pub async fn handle_thread_command(
                     .await
                     .expect("Could not send to client over socket");
 
-                trace!("S: {command}");
+                trace!(
+                    "S: {} {} {} {} xxxxx {} {}\r\n",
+                    args[0], args[1], args[2], args[3], args[5], args[6]
+                );
             }
         }
 

@@ -24,7 +24,7 @@ impl UsrS {
         UsrS { pool }
     }
 
-    fn get_hotmail_options(user: &User, msp_auth: String) -> String {
+    fn get_hotmail_options(user: &User) -> String {
         let mut payload = String::from("MIME-Version: 1.0\r\n");
         let timestamp = Utc::now().timestamp();
 
@@ -49,7 +49,7 @@ impl UsrS {
         payload.push_str("Wallet: \r\n");
         payload.push_str("Flags: 1027\r\n");
         payload.push_str("sid: 507\r\n");
-        payload.push_str(format!("MSPAuth: {msp_auth}\r\n").as_str());
+        payload.push_str("MSPAuth: \r\n");
         payload.push_str("ClientIP: 24.111.111.111\r\n");
         payload.push_str("ClientPort: 60712\r\n");
         payload.push_str("ABCHMigrated: 1\r\n\r\n");
@@ -84,7 +84,6 @@ impl AuthenticationCommand for UsrS {
         };
 
         if Utc::now().naive_utc() <= result.valid_until {
-            let msp_auth = result.token.replace("t=", "");
             let Ok(result) = users
                 .filter(id.eq(&result.user_id))
                 .select(User::as_select())
@@ -123,7 +122,7 @@ impl AuthenticationCommand for UsrS {
             let replies = vec![
                 format!("USR {tr_id} OK {user_email} 1 0\r\n"),
                 String::from("SBS 0 null\r\n"),
-                Self::get_hotmail_options(&result, msp_auth),
+                Self::get_hotmail_options(&result),
             ];
 
             return Ok((replies, authenticated_user, contact_rx));
