@@ -41,7 +41,7 @@ pub(crate) async fn register(
         );
     }
 
-    if !EmailAddress::is_valid(&payload.email.as_str()) {
+    if !EmailAddress::is_valid(payload.email.as_str()) {
         return (
             StatusCode::BAD_REQUEST,
             Json(String::from("Invalid email address")),

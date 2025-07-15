@@ -16,7 +16,7 @@ impl Command for Gcf {
         );
         payload.push_str("</shield><block></block></config>");
 
-        let length = payload.as_bytes().len();
+        let length = payload.len();
         Ok(vec![format!(
             "GCF {tr_id} Shields.xml {length}\r\n{payload}"
         )])

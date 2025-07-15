@@ -54,7 +54,7 @@ impl UsrS {
         payload.push_str("ClientPort: 60712\r\n");
         payload.push_str("ABCHMigrated: 1\r\n\r\n");
 
-        let length = payload.as_bytes().len();
+        let length = payload.len();
         format!("MSG Hotmail Hotmail {length}\r\n{payload}")
     }
 }

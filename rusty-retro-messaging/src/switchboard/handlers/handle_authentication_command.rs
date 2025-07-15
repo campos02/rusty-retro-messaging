@@ -32,7 +32,7 @@ pub async fn handle_authentication_command(
     match args[0] {
         "USR" => {
             let (protocol_version, session, authenticated_user) =
-                process_authentication_command(&broadcast_tx, wr, &Usr, &command).await?;
+                process_authentication_command(broadcast_tx, wr, &Usr, &command).await?;
 
             trace!("C: {} {} {} xxxxx\r\n", args[0], args[1], args[2]);
             return Ok((
@@ -44,7 +44,7 @@ pub async fn handle_authentication_command(
 
         "ANS" => {
             let (protocol_version, session, authenticated_user) =
-                process_authentication_command(&broadcast_tx, wr, &Ans, &command).await?;
+                process_authentication_command(broadcast_tx, wr, &Ans, &command).await?;
 
             trace!("C: {} {} {} xxxxx\r\n", args[0], args[1], args[2]);
             return Ok((

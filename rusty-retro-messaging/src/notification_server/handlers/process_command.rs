@@ -15,7 +15,7 @@ pub async fn process_command(
     command: &impl Command,
     message: &str,
 ) -> Result<Vec<String>, ErrorCommand> {
-    match command.handle(protocol_version, &message) {
+    match command.handle(protocol_version, message) {
         Ok(responses) => {
             for reply in &responses {
                 wr.write_all(reply.as_bytes())
@@ -54,7 +54,7 @@ pub async fn process_authentication_command(
     command: &impl AuthenticationCommand,
     message: &str,
 ) -> Result<(AuthenticatedUser, broadcast::Receiver<Message>), ErrorCommand> {
-    match command.handle(protocol_version, broadcast_tx, &message) {
+    match command.handle(protocol_version, broadcast_tx, message) {
         Ok((responses, authenticated_user, contact_rx)) => {
             for reply in &responses {
                 wr.write_all(reply.as_bytes())
@@ -93,7 +93,7 @@ pub async fn process_user_command(
     command: &impl UserCommand,
     message: &str,
 ) -> Result<Vec<String>, ErrorCommand> {
-    match command.handle(protocol_version, &message, authenticated_user) {
+    match command.handle(protocol_version, message, authenticated_user) {
         Ok(responses) => {
             for reply in &responses {
                 wr.write_all(reply.as_bytes())

@@ -69,14 +69,12 @@ impl UserCommand for Chg {
                 if contact.in_block_list {
                     continue;
                 }
-            } else {
-                if user.blp == "BL" {
-                    continue;
-                }
+            } else if user.blp == "BL" {
+                continue;
             }
 
             if args[2] != "HDN" {
-                let nln_command = Chg::convert(&user, &command);
+                let nln_command = Chg::convert(user, command);
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
@@ -87,7 +85,7 @@ impl UserCommand for Chg {
                     .send(thread_message)
                     .expect("Could not send to broadcast");
             } else {
-                let fln_command = Fln::convert(&user, &"".to_string());
+                let fln_command = Fln::convert(user, "");
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
@@ -130,7 +128,7 @@ impl ThreadCommand for Chg {
 
         if let Some(object) = args.next() {
             let mut object = String::from(object);
-            object.insert_str(0, " ");
+            object.insert(0, ' ');
             msn_object = object;
         }
 

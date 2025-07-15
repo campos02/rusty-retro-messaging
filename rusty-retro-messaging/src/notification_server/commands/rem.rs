@@ -156,7 +156,7 @@ impl UserCommand for Rem {
                     let reply = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email,
-                        message: Rem::convert(&user, &command),
+                        message: Rem::convert(user, command),
                     };
 
                     self.broadcast_tx
@@ -220,7 +220,7 @@ impl UserCommand for Rem {
                         contact.in_block_list = block_list;
                     };
 
-                    let nln_command = Nln::convert(&user, &command);
+                    let nln_command = Nln::convert(user, command);
                     let thread_message = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email.to_string(),

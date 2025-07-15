@@ -17,9 +17,9 @@ impl AuthenticationCommand for Ans {
     async fn handle(
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
-        command: &Vec<u8>,
+        command: &[u8],
     ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), ErrorCommand> {
-        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
@@ -125,9 +125,9 @@ impl AuthenticationCommand for Ans {
             let count = principals.len();
             let mut index = 1;
 
-            for principal in principals.to_vec() {
-                let email = principal.email;
-                let display_name = principal.display_name;
+            for principal in principals.iter().as_ref() {
+                let email = &principal.email;
+                let display_name = &principal.display_name;
 
                 let mut iro_reply =
                     format!("IRO {tr_id} {index} {count} {email} {display_name}\r\n");
@@ -147,7 +147,7 @@ impl AuthenticationCommand for Ans {
             principals.push(Principal {
                 email: user_email.to_string(),
                 display_name: authenticated_user.display_name.clone(),
-                client_id: authenticated_user.client_id.clone(),
+                client_id: authenticated_user.client_id,
             });
         }
 

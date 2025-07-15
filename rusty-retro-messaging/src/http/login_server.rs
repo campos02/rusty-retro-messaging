@@ -42,12 +42,8 @@ pub(crate) async fn login_server(
 
     let Ok(authorization) = headers
         .get(header::AUTHORIZATION)
-        .ok_or_else(|| HeaderParsingError::HeaderNotFound)
-        .and_then(|header| {
-            header
-                .to_str()
-                .or_else(|_| Err(HeaderParsingError::ToStrError))
-        })
+        .ok_or(HeaderParsingError::HeaderNotFound)
+        .and_then(|header| header.to_str().map_err(|_| HeaderParsingError::ToStrError))
     else {
         return Err(StatusCode::UNAUTHORIZED);
     };
@@ -55,14 +51,14 @@ pub(crate) async fn login_server(
     let Ok(passport) = authorization
         .split("sign-in=")
         .nth(1)
-        .ok_or_else(|| HeaderParsingError::ParameterSplitError)
+        .ok_or(HeaderParsingError::ParameterSplitError)
         .and_then(|split| {
             comma_regex
                 .find(split)
-                .ok_or_else(|| HeaderParsingError::CommaRegexError)
+                .ok_or(HeaderParsingError::CommaRegexError)
                 .and_then(|passport| {
                     urlencoding::decode(passport.as_str())
-                        .or_else(|_| Err(HeaderParsingError::UrlDecodingError))
+                        .map_err(|_| HeaderParsingError::UrlDecodingError)
                 })
         })
     else {
@@ -72,14 +68,14 @@ pub(crate) async fn login_server(
     let Ok(pwd) = authorization
         .split("pwd=")
         .nth(1)
-        .ok_or_else(|| HeaderParsingError::ParameterSplitError)
+        .ok_or(HeaderParsingError::ParameterSplitError)
         .and_then(|split| {
             comma_regex
                 .find(split)
-                .ok_or_else(|| HeaderParsingError::CommaRegexError)
+                .ok_or(HeaderParsingError::CommaRegexError)
                 .and_then(|passport| {
                     urlencoding::decode(passport.as_str())
-                        .or_else(|_| Err(HeaderParsingError::UrlDecodingError))
+                        .map_err(|_| HeaderParsingError::UrlDecodingError)
                 })
         })
     else {

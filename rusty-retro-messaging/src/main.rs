@@ -156,15 +156,13 @@ async fn main() {
                             }) {
                                 error!("Could not send message to {receiver}: {error}");
                             }
-                        } else {
-                            if let Err(error) = tx.send(Message::UserDetails {
-                                sender: receiver,
-                                receiver: sender.clone(),
-                                authenticated_user: None,
-                                protocol_version: None
-                            }) {
-                                error!("Could not send user details to {sender}: {error}");
-                            }
+                        } else if let Err(error) = tx.send(Message::UserDetails {
+                            sender: receiver,
+                            receiver: sender.clone(),
+                            authenticated_user: None,
+                            protocol_version: None
+                        }) {
+                            error!("Could not send user details to {sender}: {error}");
                         }
                     }
 

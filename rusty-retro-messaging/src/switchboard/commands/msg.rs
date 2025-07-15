@@ -13,10 +13,10 @@ impl Command for Msg {
         protocol_version: usize,
         user: &mut AuthenticatedUser,
         session: &mut Session,
-        command: &Vec<u8>,
+        command: &[u8],
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let command_string = unsafe { str::from_utf8_unchecked(command) };
         let command_string = command_string
             .lines()
             .next()
@@ -34,7 +34,7 @@ impl Command for Msg {
             "MSG {email} {display_name} {length}\r\n"
         )));
 
-        let mut command = command.clone();
+        let mut command = command.to_vec();
         command.splice(..command_string.len(), async_msg);
 
         let message = Message::ToPrincipals {

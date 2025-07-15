@@ -35,15 +35,14 @@ impl UserCommand for Gtc {
             return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         };
 
-        if setting == "A" || setting == "N" {
-            if diesel::update(users)
+        if (setting == "A" || setting == "N")
+            && diesel::update(users)
                 .filter(email.eq(&user.email))
                 .set(gtc.eq(&setting))
                 .execute(connection)
                 .is_err()
-            {
-                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-            }
+        {
+            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         }
 
         Ok(vec![command.to_string()])

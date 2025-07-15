@@ -14,7 +14,7 @@ pub async fn process_authentication_command(
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: &impl AuthenticationCommand,
-    message: &Vec<u8>,
+    message: &[u8],
 ) -> Result<(usize, Session, AuthenticatedUser), ErrorCommand> {
     match command.handle(broadcast_tx, message).await {
         Ok((responses, protocol_version, session, authenticated_user)) => {
@@ -55,7 +55,7 @@ pub async fn process_session_command(
     session: &mut Session,
     wr: &mut WriteHalf<'_>,
     command: &impl Command,
-    message: &Vec<u8>,
+    message: &[u8],
 ) -> Result<Vec<String>, ErrorCommand> {
     match command
         .handle(protocol_version, authenticated_user, session, message)

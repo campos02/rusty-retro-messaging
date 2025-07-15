@@ -43,80 +43,80 @@ pub async fn handle_user_command(
 
         "SYN" => {
             let syn = Syn::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &syn, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &syn, command).await?;
         }
 
         "GCF" => {
-            process_command(protocol_version, wr, &Gcf, &command).await?;
+            process_command(protocol_version, wr, &Gcf, command).await?;
         }
 
         "URL" => {
-            process_command(protocol_version, wr, &Url, &command).await?;
+            process_command(protocol_version, wr, &Url, command).await?;
         }
 
         "CHG" => {
             let first_chg = authenticated_user.presence.is_none();
             let chg = Chg::new(broadcast_tx.clone(), first_chg);
-            process_user_command(protocol_version, wr, authenticated_user, &chg, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &chg, command).await?;
         }
 
         "UUX" => {
             let uux = Uux::new(broadcast_tx.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &uux, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &uux, command).await?;
         }
 
         "PRP" => {
             let prp = Prp::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &prp, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &prp, command).await?;
         }
 
         "SBP" => {
             let sbp = Sbp::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &sbp, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &sbp, command).await?;
         }
 
         "SDC" => {
-            process_command(protocol_version, wr, &Sdc, &command).await?;
+            process_command(protocol_version, wr, &Sdc, command).await?;
         }
 
         "ADC" => {
             let adc = Adc::new(pool.clone(), broadcast_tx.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &adc, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &adc, command).await?;
         }
 
         "REM" => {
             let rem = Rem::new(pool.clone(), broadcast_tx.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &rem, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &rem, command).await?;
         }
 
         "ADG" => {
             let adg = Adg::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &adg, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &adg, command).await?;
         }
 
         "RMG" => {
             let rmg = Rmg::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &rmg, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &rmg, command).await?;
         }
 
         "REG" => {
             let reg = Reg::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &reg, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &reg, command).await?;
         }
 
         "BLP" => {
             let blp = Blp::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &blp, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &blp, command).await?;
         }
 
         "GTC" => {
             let gtc = Gtc::new(pool.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &gtc, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &gtc, command).await?;
         }
 
         "XFR" => {
             let xfr = Xfr::new(broadcast_tx.clone());
-            process_user_command(protocol_version, wr, authenticated_user, &xfr, &command).await?;
+            process_user_command(protocol_version, wr, authenticated_user, &xfr, command).await?;
         }
 
         "PNG" => {

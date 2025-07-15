@@ -192,7 +192,7 @@ impl UserCommand for Adc {
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
-                    message: Adc::convert(&user, command),
+                    message: Adc::convert(user, command),
                 };
 
                 self.broadcast_tx
@@ -204,7 +204,7 @@ impl UserCommand for Adc {
                 )])
             } else {
                 if block_list {
-                    let fln_command = Fln::convert(&user, command);
+                    let fln_command = Fln::convert(user, command);
                     let message = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email.clone(),
@@ -256,17 +256,15 @@ impl UserCommand for Adc {
                 .is_ok()
             {
                 return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
-            } else {
-                if insert_into(group_members)
-                    .values((
-                        group_id.eq(&group.id),
-                        crate::schema::group_members::contact_id.eq(&contact.id),
-                    ))
-                    .execute(connection)
-                    .is_err()
-                {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                }
+            } else if insert_into(group_members)
+                .values((
+                    group_id.eq(&group.id),
+                    crate::schema::group_members::contact_id.eq(&contact.id),
+                ))
+                .execute(connection)
+                .is_err()
+            {
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
             return Ok(vec![format!(

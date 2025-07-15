@@ -10,7 +10,7 @@ impl ThreadCommand for Iln {
         let mut msn_object = String::from("");
         if let Some(object) = &user.msn_object {
             let mut object = String::from(object);
-            object.insert_str(0, " ");
+            object.insert(0, ' ');
             msn_object = object;
         }
 

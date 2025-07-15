@@ -26,9 +26,9 @@ impl Command for Cal {
         protocol_version: usize,
         user: &mut AuthenticatedUser,
         session: &mut Session,
-        command: &Vec<u8>,
+        command: &[u8],
     ) -> Result<Vec<String>, ErrorCommand> {
-        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
@@ -95,11 +95,11 @@ impl Command for Cal {
         }
 
         if let Ok(presence) = principal_user
-            .ok_or_else(|| InvitationError::PrincipalUserNotFound)
+            .ok_or(InvitationError::PrincipalUserNotFound)
             .and_then(|authenticated_user| {
                 authenticated_user
                     .presence
-                    .ok_or_else(|| InvitationError::PrincipalOffline)
+                    .ok_or(InvitationError::PrincipalOffline)
             })
         {
             if presence == "HDN" {

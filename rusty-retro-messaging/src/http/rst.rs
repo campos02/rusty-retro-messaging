@@ -55,17 +55,17 @@ pub(crate) async fn rst(
     let Ok(username_token) = envelope
         .header
         .as_ref()
-        .ok_or_else(|| ElementNotFoundError::HeaderNotFound)
+        .ok_or(ElementNotFoundError::HeaderNotFound)
         .and_then(|header| {
             header
                 .security
                 .as_ref()
-                .ok_or_else(|| ElementNotFoundError::SecurityNotFound)
+                .ok_or(ElementNotFoundError::SecurityNotFound)
                 .and_then(|security| {
                     security
                         .username_token
                         .as_ref()
-                        .ok_or_else(|| ElementNotFoundError::UsernameTokenNotFound)
+                        .ok_or(ElementNotFoundError::UsernameTokenNotFound)
                 })
         })
     else {
@@ -115,11 +115,11 @@ pub(crate) async fn rst(
     let Ok(request_multiple_security_tokens) = envelope
         .body
         .as_ref()
-        .ok_or_else(|| ElementNotFoundError::BodyNotFound)
+        .ok_or(ElementNotFoundError::BodyNotFound)
         .and_then(|body| {
             body.request_multiple_security_tokens
                 .as_ref()
-                .ok_or_else(|| ElementNotFoundError::RequestMultipleSecurityTokensNotFound)
+                .ok_or(ElementNotFoundError::RequestMultipleSecurityTokensNotFound)
         })
     else {
         return invalid_request_envelope();
@@ -222,12 +222,12 @@ pub(crate) async fn rst(
                 if let Ok(uri) = security_token
                     .policy_reference
                     .as_ref()
-                    .ok_or_else(|| ElementNotFoundError::PolicyReferenceNotFound)
+                    .ok_or(ElementNotFoundError::PolicyReferenceNotFound)
                     .and_then(|policy_reference| {
                         policy_reference
                             .uri
                             .as_ref()
-                            .ok_or_else(|| ElementNotFoundError::UriNotFound)
+                            .ok_or(ElementNotFoundError::UriNotFound)
                     })
                 {
                     if uri != "?ct=1&rver=1&wp=FS_40SEC_0_COMPACT&lc=1&id=1" {

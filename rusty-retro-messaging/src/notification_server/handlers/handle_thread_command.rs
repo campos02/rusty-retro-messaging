@@ -23,7 +23,7 @@ pub async fn handle_thread_command(
     match args[0] {
         "ILN" => {
             trace!("Thread {sender}: {command}");
-            
+
             let presence = args[2];
             let contact = args[3];
 
@@ -40,7 +40,7 @@ pub async fn handle_thread_command(
 
         "NLN" => {
             trace!("Thread {sender}: {command}");
-            
+
             if command.len() < 2 {
                 return Ok(());
             }
@@ -61,7 +61,7 @@ pub async fn handle_thread_command(
 
         "FLN" => {
             trace!("Thread {sender}: {command}");
-            
+
             let contact = args[1].trim();
             if let Some(contact) = authenticated_user.contacts.get_mut(contact) {
                 contact.presence = None;
@@ -85,13 +85,13 @@ pub async fn handle_thread_command(
 
         "CHG" => {
             trace!("Thread {sender}: {command}");
-            
+
             // A user has logged in
-            if NotificationServer::verify_contact(&authenticated_user, &sender).is_err() {
+            if NotificationServer::verify_contact(authenticated_user, &sender).is_err() {
                 return Ok(());
             }
 
-            let iln_command = Iln::convert(&authenticated_user, &command);
+            let iln_command = Iln::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender.clone(),
@@ -102,7 +102,7 @@ pub async fn handle_thread_command(
                 .send(thread_message)
                 .expect("Could not send to broadcast");
 
-            let ubx_command = Ubx::convert(&authenticated_user, &command);
+            let ubx_command = Ubx::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
@@ -116,7 +116,7 @@ pub async fn handle_thread_command(
 
         "ADC" => {
             trace!("Thread {sender}: {command}");
-            if NotificationServer::verify_contact(&authenticated_user, &sender).is_err() {
+            if NotificationServer::verify_contact(authenticated_user, &sender).is_err() {
                 wr.write_all(command.as_bytes())
                     .await
                     .expect("Could not send to client over socket");
@@ -125,7 +125,7 @@ pub async fn handle_thread_command(
                 return Ok(());
             }
 
-            let nln_command = Nln::convert(&authenticated_user, &command);
+            let nln_command = Nln::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender.clone(),
@@ -136,7 +136,7 @@ pub async fn handle_thread_command(
                 .send(thread_message)
                 .expect("Could not send to broadcast");
 
-            let ubx_command = Ubx::convert(&authenticated_user, &command);
+            let ubx_command = Ubx::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
@@ -168,8 +168,8 @@ pub async fn handle_thread_command(
                 "Thread {sender}: {} {} {} {} xxxxx {} {}\r\n",
                 args[0], args[1], args[2], args[3], args[5], args[6]
             );
-            
-            if NotificationServer::verify_contact(&authenticated_user, &sender).is_ok() {
+
+            if NotificationServer::verify_contact(authenticated_user, &sender).is_ok() {
                 wr.write_all(command.as_bytes())
                     .await
                     .expect("Could not send to client over socket");
@@ -195,7 +195,7 @@ pub async fn handle_thread_command(
 
         "GetUserDetails" => {
             trace!("Thread {sender}: {command}");
-            if NotificationServer::verify_contact(&authenticated_user, &sender).is_ok() {
+            if NotificationServer::verify_contact(authenticated_user, &sender).is_ok() {
                 let thread_message = Message::SendUserDetails {
                     sender: authenticated_user.email.clone(),
                     receiver: sender,

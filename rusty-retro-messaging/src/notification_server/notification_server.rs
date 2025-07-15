@@ -5,17 +5,17 @@ use crate::notification_server::handlers::handle_user_command::handle_user_comma
 use crate::notification_server::handlers::handle_ver::handle_ver;
 use crate::receive_split::receive_split;
 use crate::{
+    Message,
     error_command::ErrorCommand,
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{fln::Fln, traits::thread_command::ThreadCommand},
-    Message,
 };
 use diesel::{
-    r2d2::{ConnectionManager, Pool},
     MysqlConnection,
+    r2d2::{ConnectionManager, Pool},
 };
 use tokio::{
-    net::{tcp::WriteHalf, TcpStream},
+    net::{TcpStream, tcp::WriteHalf},
     sync::broadcast,
 };
 
@@ -144,11 +144,10 @@ impl NotificationServer {
             .keys()
         {
             let fln_command = Fln::convert(
-                &self
-                    .authenticated_user
+                self.authenticated_user
                     .as_ref()
                     .expect("Could not get authenticated user"),
-                &"".to_string(),
+                "",
             );
 
             let message = Message::ToContact {
@@ -188,10 +187,8 @@ impl NotificationServer {
             } else {
                 return Err(ContactVerificationError::UserAppearingOffline);
             }
-        } else {
-            if authenticated_user.blp == "BL" && *email != authenticated_user.email {
-                return Err(ContactVerificationError::ContactNotInAllowList);
-            }
+        } else if authenticated_user.blp == "BL" && *email != authenticated_user.email {
+            return Err(ContactVerificationError::ContactNotInAllowList);
         }
 
         Ok(())

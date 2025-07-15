@@ -50,11 +50,11 @@ impl UserCommand for Uux {
         user.personal_message = Some(payload);
 
         for email in user.contacts.keys() {
-            if NotificationServer::verify_contact(&user, &email).is_err() {
+            if NotificationServer::verify_contact(user, email).is_err() {
                 continue;
             }
 
-            let ubx_command = Ubx::convert(&user, &command);
+            let ubx_command = Ubx::convert(user, command);
             let thread_message = Message::ToContact {
                 sender: user.email.clone(),
                 receiver: email.clone(),

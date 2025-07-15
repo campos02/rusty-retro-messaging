@@ -31,14 +31,14 @@ pub async fn handle_authentication_command(
     match args[0] {
         "CVR" => {
             trace!("C: {command}");
-            process_command(protocol_version, wr, &Cvr, &command).await?;
+            process_command(protocol_version, wr, &Cvr, command).await?;
         }
 
         "USR" => match args[3] {
             "I" => {
                 trace!("C: {command}");
                 let usr = UsrI::new(pool.clone());
-                process_command(protocol_version, wr, &usr, &command).await?;
+                process_command(protocol_version, wr, &usr, command).await?;
             }
 
             "S" => {
@@ -51,9 +51,9 @@ pub async fn handle_authentication_command(
                 let (authenticated_user, contact_rx) = process_authentication_command(
                     protocol_version,
                     wr,
-                    &broadcast_tx,
+                    broadcast_tx,
                     &usr,
-                    &command,
+                    command,
                 )
                 .await?;
 

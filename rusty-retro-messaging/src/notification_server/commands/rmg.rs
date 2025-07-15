@@ -63,10 +63,8 @@ impl UserCommand for Rmg {
                 .is_ok()
             {
                 return Err(ErrorCommand::Command(format!("226 {tr_id}\r\n")));
-            } else {
-                if delete(&group).execute(connection).is_err() {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                }
+            } else if delete(&group).execute(connection).is_err() {
+                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
             Ok(vec![format!("RMG {tr_id} 1 {group_guid}\r\n")])
         } else {

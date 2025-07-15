@@ -14,9 +14,9 @@ impl AuthenticationCommand for Usr {
     async fn handle(
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
-        command: &Vec<u8>,
+        command: &[u8],
     ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), ErrorCommand> {
-        let command_string = unsafe { str::from_utf8_unchecked(&command) };
+        let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
