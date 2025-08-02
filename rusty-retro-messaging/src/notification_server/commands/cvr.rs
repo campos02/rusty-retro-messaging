@@ -4,7 +4,11 @@ use crate::error_command::ErrorCommand;
 pub struct Cvr;
 
 impl Command for Cvr {
-    fn handle(&self, protocol_version: usize, command: &str) -> Result<Vec<String>, ErrorCommand> {
+    async fn handle(
+        &self,
+        protocol_version: usize,
+        command: &str,
+    ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();

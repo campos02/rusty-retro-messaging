@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS users (
+   id INTEGER AUTO_INCREMENT PRIMARY KEY,
+   email TEXT NOT NULL,
+   password TEXT NOT NULL,
+   display_name TEXT NOT NULL,
+   puid BIGINT UNSIGNED NOT NULL,
+   guid TEXT NOT NULL,
+   gtc TEXT NOT NULL,
+   blp TEXT NOT NULL
+);

@@ -5,16 +5,13 @@ use axum::{
     middleware,
     routing::{get, post},
 };
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use hyper::{Request, body::Incoming};
 use hyper_util::{
     rt::{TokioExecutor, TokioIo},
     server,
 };
 use log::{error, info};
+use sqlx::{MySql, Pool};
 use std::env;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
@@ -28,10 +25,7 @@ mod stats;
 mod xml;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
-pub async fn listen(
-    pool: Pool<ConnectionManager<MysqlConnection>>,
-    broadcast_tx: broadcast::Sender<Message>,
-) {
+pub async fn listen(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>) {
     let frontend_url = env::var("FRONTEND_URL").expect("FRONTEND_URL not set");
     let cors = CorsLayer::new().allow_origin(
         frontend_url

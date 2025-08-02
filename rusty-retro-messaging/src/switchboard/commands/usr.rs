@@ -109,8 +109,8 @@ impl AuthenticationCommand for Usr {
 
         let authenticated_user: AuthenticatedUser =
             authenticated_user_result.expect("Could not get authenticated user");
-        let protocol_version = protocol_version_result.expect("Could not get protocol version");
 
+        let protocol_version = protocol_version_result.expect("Could not get protocol version");
         let user_email = &authenticated_user.email;
         let user_display_name = &authenticated_user.display_name;
 

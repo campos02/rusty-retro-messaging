@@ -3,7 +3,7 @@ FROM rust
 RUN apt update
 RUN apt install -y libmariadb-dev cmake
 
-RUN cargo install diesel_cli --no-default-features --features mysql
+RUN cargo install sqlx-cli
 
 WORKDIR /usr/src/rusty-retro-messaging
 COPY . .

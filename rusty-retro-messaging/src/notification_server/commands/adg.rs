@@ -1,29 +1,21 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
-use crate::schema::groups::dsl::groups;
-use crate::schema::groups::{guid, name, user_id};
-use crate::schema::users::dsl::users;
-use crate::{models::user::User, schema::users::email};
-use diesel::insert_into;
-use diesel::{
-    BelongingToDsl, ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::user::User;
+use sqlx::{MySql, Pool};
 
 pub struct Adg {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Adg {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Adg { pool }
     }
 }
 
 impl UserCommand for Adg {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -35,39 +27,33 @@ impl UserCommand for Adg {
         let tr_id = args[1];
         let group_name = args[2];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
+        let database_user = sqlx::query_as!(
+            User,
+            "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+                FROM users WHERE email = ? LIMIT 1",
+            user.email
+        )
+        .fetch_one(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
-        let Ok(user_database) = users
-            .filter(email.eq(&user.email))
-            .select(User::as_select())
-            .get_result(connection)
-        else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
-
-        if Group::belonging_to(&user_database)
-            .filter(name.eq(&group_name))
-            .select(Group::as_select())
-            .get_result(connection)
+        if sqlx::query!("SELECT id FROM groups WHERE name = ?", group_name)
+            .fetch_one(&self.pool)
+            .await
             .is_ok()
         {
             Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")))
         } else {
             let group_guid = guid_create::GUID::rand().to_string().to_lowercase();
-
-            if insert_into(groups)
-                .values((
-                    user_id.eq(&user_database.id),
-                    name.eq(group_name),
-                    guid.eq(&group_guid),
-                ))
-                .execute(connection)
-                .is_err()
-            {
-                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-            }
+            sqlx::query!(
+                "INSERT INTO groups (user_id, name, guid) VALUES (?, ?, ?)",
+                database_user.id,
+                group_name,
+                group_guid
+            )
+            .execute(&self.pool)
+            .await
+            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
             Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")])
         }

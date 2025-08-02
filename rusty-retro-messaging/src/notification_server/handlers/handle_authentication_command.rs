@@ -5,16 +5,13 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{cvr::Cvr, usr_i::UsrI, usr_s::UsrS},
 };
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use log::{trace, warn};
+use sqlx::{MySql, Pool};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_authentication_command(
     protocol_version: usize,
-    pool: &Pool<ConnectionManager<MysqlConnection>>,
+    pool: &Pool<MySql>,
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,

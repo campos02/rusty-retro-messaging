@@ -14,10 +14,7 @@ use super::xml::rst_xml::{
     wsu::{Created, Expires},
     xs,
 };
-use crate::schema::tokens::dsl::tokens;
-use crate::schema::tokens::{token, user_id, valid_until};
-use crate::schema::users::dsl::users;
-use crate::{models::user::User, schema::users::email};
+use crate::models::user::User;
 use argon2::password_hash::{
     SaltString,
     rand_core::{self, RngCore},
@@ -27,14 +24,9 @@ use axum::{extract::State, response::IntoResponse};
 use axum_serde::Xml;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Duration, Utc};
-use diesel::query_dsl::methods::{FilterDsl, SelectDsl};
-use diesel::{ExpressionMethods, RunQueryDsl, insert_into};
-use diesel::{
-    MysqlConnection, SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
 use log::trace;
 use quick_xml::events::{BytesDecl, Event};
+use sqlx::{MySql, Pool};
 
 enum ElementNotFoundError {
     HeaderNotFound,
@@ -47,11 +39,9 @@ enum ElementNotFoundError {
 }
 
 pub(crate) async fn rst(
-    State(pool): State<Pool<ConnectionManager<MysqlConnection>>>,
+    State(pool): State<Pool<MySql>>,
     Xml(envelope): Xml<Envelope>,
 ) -> impl IntoResponse {
-    let connection = &mut pool.get().expect("Could not get connection from pool");
-
     let Ok(username_token) = envelope
         .header
         .as_ref()
@@ -72,12 +62,16 @@ pub(crate) async fn rst(
         return invalid_request_envelope();
     };
 
-    let Ok(user) = users
-        .filter(email.eq(&username_token.username.content))
-        .select(User::as_select())
-        .get_result(connection)
+    let Ok(user) = sqlx::query_as!(
+        User,
+        "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+        FROM users WHERE email = ? LIMIT 1",
+        username_token.username.content
+    )
+    .fetch_one(&pool)
+    .await
     else {
-        return failed_authentication_envelope();
+        return invalid_request_envelope();
     };
 
     let parsed_hash = PasswordHash::new(&user.password).expect("Could not hash password");
@@ -101,14 +95,18 @@ pub(crate) async fn rst(
     let now = Utc::now().naive_utc();
     let datetime = now + Duration::hours(24);
 
-    insert_into(tokens)
-        .values((
-            token.eq(&generated_token),
-            valid_until.eq(&datetime),
-            user_id.eq(&user.id),
-        ))
-        .execute(connection)
-        .expect("Could not insert token");
+    if sqlx::query!(
+        "INSERT INTO tokens (token, valid_until, user_id) VALUES (?, ?, ?)",
+        generated_token,
+        datetime,
+        user.id
+    )
+    .execute(&pool)
+    .await
+    .is_err()
+    {
+        return failed_authentication_envelope();
+    }
 
     trace!("Generated token for {}", user.email);
 

@@ -20,7 +20,7 @@ impl Uux {
 }
 
 impl UserCommand for Uux {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,

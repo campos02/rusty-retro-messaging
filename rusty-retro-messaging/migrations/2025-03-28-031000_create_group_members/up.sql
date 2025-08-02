@@ -1,5 +1,0 @@
-CREATE TABLE group_members (
-  id INTEGER AUTO_INCREMENT PRIMARY KEY,
-  group_id INTEGER NOT NULL REFERENCES groups(id),
-  contact_id INTEGER NOT NULL REFERENCES contacts(id)
-);

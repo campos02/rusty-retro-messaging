@@ -23,7 +23,7 @@ impl Xfr {
 }
 
 impl UserCommand for Xfr {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,

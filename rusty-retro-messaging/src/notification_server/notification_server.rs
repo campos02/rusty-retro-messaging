@@ -10,17 +10,14 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{fln::Fln, traits::thread_command::ThreadCommand},
 };
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
+use sqlx::{MySql, Pool};
 use tokio::{
     net::{TcpStream, tcp::WriteHalf},
     sync::broadcast,
 };
 
 pub struct NotificationServer {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
     pub broadcast_tx: broadcast::Sender<Message>,
     contact_rx: Option<broadcast::Receiver<Message>>,
     pub authenticated_user: Option<AuthenticatedUser>,
@@ -28,10 +25,7 @@ pub struct NotificationServer {
 }
 
 impl NotificationServer {
-    pub fn new(
-        pool: Pool<ConnectionManager<MysqlConnection>>,
-        broadcast_tx: broadcast::Sender<Message>,
-    ) -> Self {
+    pub fn new(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>) -> Self {
         NotificationServer {
             pool,
             broadcast_tx: broadcast_tx.clone(),

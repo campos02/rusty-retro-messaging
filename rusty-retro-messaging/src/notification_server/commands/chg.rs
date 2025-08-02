@@ -23,7 +23,7 @@ impl Chg {
 }
 
 impl UserCommand for Chg {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,

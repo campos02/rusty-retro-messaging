@@ -4,23 +4,16 @@ use crate::message::Message;
 use crate::models::token::Token;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
-use crate::schema::tokens::dsl::tokens;
-use crate::schema::tokens::token;
-use crate::schema::users::dsl::users;
-use crate::schema::users::id;
 use chrono::Utc;
-use diesel::query_dsl::methods::FilterDsl;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::{ExpressionMethods, MysqlConnection, RunQueryDsl};
-use diesel::{SelectableHelper, query_dsl::methods::SelectDsl};
+use sqlx::{MySql, Pool};
 use tokio::sync::broadcast;
 
 pub struct UsrS {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl UsrS {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         UsrS { pool }
     }
 
@@ -60,7 +53,7 @@ impl UsrS {
 }
 
 impl AuthenticationCommand for UsrS {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         broadcast_tx: &broadcast::Sender<Message>,
@@ -71,38 +64,34 @@ impl AuthenticationCommand for UsrS {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Disconnect(format!("500 {tr_id}\r\n")));
-        };
+        let token = sqlx::query_as!(
+            Token,
+            "SELECT id, token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
+            args[4].trim()
+        )
+        .fetch_one(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("911 {tr_id}\r\n"))))?;
 
-        let Ok(result) = tokens
-            .filter(token.eq(&args[4].trim()))
-            .select(Token::as_select())
-            .get_result(connection)
-        else {
-            return Err(ErrorCommand::Disconnect(format!("911 {tr_id}\r\n")));
-        };
-
-        if Utc::now().naive_utc() <= result.valid_until {
-            let Ok(result) = users
-                .filter(id.eq(&result.user_id))
-                .select(User::as_select())
-                .get_result(connection)
-            else {
-                return Err(ErrorCommand::Disconnect(format!("911 {tr_id}\r\n")));
-            };
-
-            let user_email = &result.email;
+        if Utc::now().naive_utc() <= token.valid_until {
+            let database_user = sqlx::query_as!(
+                User,
+                "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+                FROM users WHERE id = ? LIMIT 1",
+                token.user_id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .or(Err(ErrorCommand::Command(format!("911 {tr_id}\r\n"))))?;
 
             broadcast_tx
                 .send(Message::AddUser)
                 .expect("Could not send to broadcast");
 
-            let authenticated_user = AuthenticatedUser::new(user_email.clone());
-
+            let authenticated_user = AuthenticatedUser::new(database_user.email.clone());
             let thread_message = Message::ToContact {
-                sender: user_email.to_string(),
-                receiver: user_email.to_string(),
+                sender: database_user.email.clone(),
+                receiver: database_user.email.clone(),
                 message: "OUT OTH\r\n".to_string(),
             };
 
@@ -113,16 +102,16 @@ impl AuthenticationCommand for UsrS {
             let (tx, _) = broadcast::channel::<Message>(16);
             broadcast_tx
                 .send(Message::SetTx {
-                    key: user_email.to_string(),
+                    key: database_user.email.clone(),
                     value: tx.clone(),
                 })
                 .expect("Could not send to broadcast");
 
             let contact_rx = tx.subscribe();
             let replies = vec![
-                format!("USR {tr_id} OK {user_email} 1 0\r\n"),
+                format!("USR {tr_id} OK {} 1 0\r\n", database_user.email),
                 String::from("SBS 0 null\r\n"),
-                Self::get_hotmail_options(&result),
+                Self::get_hotmail_options(&database_user),
             ];
 
             return Ok((replies, authenticated_user, contact_rx));

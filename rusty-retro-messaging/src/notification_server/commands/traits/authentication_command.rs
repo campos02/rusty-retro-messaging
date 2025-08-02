@@ -5,7 +5,7 @@ use crate::{
 use tokio::sync::broadcast;
 
 pub trait AuthenticationCommand {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         broadcast_tx: &broadcast::Sender<Message>,

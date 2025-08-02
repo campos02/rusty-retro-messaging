@@ -1,27 +1,21 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
-use crate::schema::groups::{guid, name};
-use crate::schema::users::dsl::users;
-use crate::{models::user::User, schema::users::email};
-use diesel::{
-    BelongingToDsl, ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::user::User;
+use sqlx::{MySql, Pool};
 
 pub struct Reg {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Reg {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Reg { pool }
     }
 }
 
 impl UserCommand for Reg {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -35,45 +29,40 @@ impl UserCommand for Reg {
         let new_name = args[3];
         let number = args[4];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
+        let database_user = sqlx::query_as!(
+            User,
+            "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+                FROM users WHERE email = ? LIMIT 1",
+            user.email
+        )
+        .fetch_one(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
-        let Ok(user_database) = users
-            .filter(email.eq(&user.email))
-            .select(User::as_select())
-            .get_result(connection)
-        else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
-
-        if let Ok(group) = Group::belonging_to(&user_database)
-            .filter(guid.eq(&group_guid))
-            .select(Group::as_select())
-            .get_result(connection)
+        if sqlx::query!(
+            "SELECT id FROM groups WHERE name = ? AND user_id = ? LIMIT 1",
+            new_name,
+            database_user.id
+        )
+        .fetch_one(&self.pool)
+        .await
+        .is_ok()
         {
-            if Group::belonging_to(&user_database)
-                .filter(name.eq(&new_name))
-                .select(Group::as_select())
-                .get_result(connection)
-                .is_ok()
-            {
-                return Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")));
-            }
-
-            if diesel::update(&group)
-                .set(name.eq(&new_name))
-                .execute(connection)
-                .is_err()
-            {
-                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-            }
-
-            Ok(vec![format!(
-                "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"
-            )])
-        } else {
-            Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")))
+            return Err(ErrorCommand::Command(format!("228 {tr_id}\r\n")));
         }
+
+        sqlx::query!(
+            "UPDATE groups SET name = ? WHERE guid = ? AND user_id = ?",
+            new_name,
+            group_guid,
+            database_user.id
+        )
+        .execute(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+
+        Ok(vec![format!(
+            "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"
+        )])
     }
 }

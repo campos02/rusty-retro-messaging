@@ -3,40 +3,27 @@ use super::traits::thread_command::ThreadCommand;
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::message::Message;
+use crate::models::contact::Contact;
 use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
-use crate::schema::contacts::{in_allow_list, in_block_list, in_forward_list};
-use crate::schema::groups::dsl::groups;
-use crate::schema::users::dsl::users;
-use crate::{
-    models::{contact::Contact, user::User},
-    schema::users::{email, id},
-};
-use diesel::delete;
-use diesel::{
-    BelongingToDsl, ExpressionMethods, JoinOnDsl, MysqlConnection, QueryDsl, RunQueryDsl,
-    SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::user::User;
+use sqlx::{MySql, Pool};
 use tokio::sync::broadcast;
 
 pub struct Rem {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
     broadcast_tx: broadcast::Sender<Message>,
 }
 
 impl Rem {
-    pub fn new(
-        pool: Pool<ConnectionManager<MysqlConnection>>,
-        broadcast_tx: broadcast::Sender<Message>,
-    ) -> Self {
+    pub fn new(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>) -> Self {
         Rem { pool, broadcast_tx }
     }
 }
 
 impl UserCommand for Rem {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -48,10 +35,6 @@ impl UserCommand for Rem {
         let tr_id = args[1];
         let list = args[2];
         let contact_email = args[3];
-
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -71,169 +54,195 @@ impl UserCommand for Rem {
                 let contact_guid = contact_email;
                 let group_guid = args[4];
 
-                let Ok(user_database) = users
-                    .filter(email.eq(&user.email))
-                    .select(User::as_select())
-                    .get_result(connection)
-                else {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                };
+                let database_user = sqlx::query_as!(
+                    User,
+                    "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
+                    user.email
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
-                let Ok(group) = groups
-                    .filter(crate::schema::groups::guid.eq(&group_guid))
-                    .select(Group::as_select())
-                    .get_result(connection)
-                else {
-                    return Err(ErrorCommand::Command(format!("224 {tr_id}\r\n")));
-                };
+                let group = sqlx::query_as!(
+                    Group,
+                    "SELECT id, user_id, name, guid FROM groups WHERE guid = ? AND user_id = ? LIMIT 1",
+                    group_guid,
+                    database_user.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("224 {tr_id}\r\n"))))?;
 
-                let Ok(contact) = Contact::belonging_to(&user_database)
-                    .inner_join(users.on(id.eq(crate::schema::contacts::contact_id)))
-                    .filter(crate::schema::users::guid.eq(&contact_guid))
-                    .select(Contact::as_select())
-                    .get_result(connection)
-                else {
-                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
-                };
+                let contact = sqlx::query_as!(
+                    Contact,
+                    "SELECT contacts.id, user_id, contact_id, contacts.display_name, email, guid,
+                    in_forward_list as `in_forward_list: _`,
+                    in_allow_list as `in_allow_list: _`,
+                    in_block_list as `in_block_list: _`
+                    FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                    WHERE guid = ? AND user_id = ?
+                    LIMIT 1",
+                    contact_guid,
+                    database_user.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("208 {tr_id}\r\n"))))?;
 
-                if let Ok(member) = GroupMember::belonging_to(&group)
-                    .filter(crate::schema::group_members::contact_id.eq(&contact.id))
-                    .select(GroupMember::as_select())
-                    .get_result(connection)
-                {
-                    if delete(&member).execute(connection).is_err() {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                    }
-                } else {
-                    return Err(ErrorCommand::Command(format!("225 {tr_id}\r\n")));
-                }
+                let group_member = sqlx::query_as!(
+                    GroupMember,
+                    "SELECT id, group_id, contact_id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
+                    group.id,
+                    contact.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("225 {tr_id}\r\n"))))?;
+
+                sqlx::query!("DELETE FROM group_members WHERE id = ?", group_member.id)
+                    .execute(&self.pool)
+                    .await
+                    .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
                 Ok(vec![format!(
                     "REM {tr_id} {list} {contact_guid} {group_guid}\r\n"
                 )])
             } else {
                 let contact_guid = contact_email;
+                let database_user = sqlx::query_as!(
+                    User,
+                    "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
+                    user.email
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
-                let Ok(user_database) = users
-                    .filter(email.eq(&user.email))
-                    .select(User::as_select())
-                    .get_result(connection)
-                else {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                };
+                let contact = sqlx::query_as!(
+                    Contact,
+                    "SELECT contacts.id, user_id, contact_id, contacts.display_name, email, guid,
+                    in_forward_list as `in_forward_list: _`,
+                    in_allow_list as `in_allow_list: _`,
+                    in_block_list as `in_block_list: _`
+                    FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                    WHERE guid = ? AND user_id = ?
+                    LIMIT 1",
+                    contact_guid,
+                    database_user.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(ErrorCommand::Command(format!("216 {tr_id}\r\n"))))?;
 
-                if let Ok(contact) = Contact::belonging_to(&user_database)
-                    .inner_join(users.on(id.eq(crate::schema::contacts::contact_id)))
-                    .filter(crate::schema::users::guid.eq(&contact_guid))
-                    .select(Contact::as_select())
-                    .get_result(connection)
-                {
-                    let forward_list = false;
-                    if !contact.in_forward_list {
-                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
-                    }
-
-                    if diesel::update(&contact)
-                        .set(in_forward_list.eq(&forward_list))
-                        .execute(connection)
-                        .is_err()
-                    {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                    }
-
-                    let Ok(contact_email) = users
-                        .filter(id.eq(&contact.contact_id))
-                        .select(email)
-                        .get_result::<String>(connection)
-                    else {
-                        return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
-                    };
-
-                    if let Some(contact) = user.contacts.get_mut(&contact_email) {
-                        contact.in_forward_list = forward_list;
-                    };
-
-                    let reply = Message::ToContact {
-                        sender: user.email.clone(),
-                        receiver: contact_email,
-                        message: Rem::convert(user, command),
-                    };
-
-                    self.broadcast_tx
-                        .send(reply)
-                        .expect("Could not send to broadcast");
-                } else {
+                if !contact.in_forward_list {
                     return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
+                }
+
+                if sqlx::query!(
+                    "UPDATE contacts SET in_forward_list = FALSE WHERE id = ?",
+                    contact.id
+                )
+                .execute(&self.pool)
+                .await
+                .is_err()
+                {
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                }
+
+                if let Some(contact) = user.contacts.get_mut(&contact.email) {
+                    contact.in_forward_list = false;
                 };
+
+                let reply = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: contact.email,
+                    message: Rem::convert(user, command),
+                };
+
+                self.broadcast_tx
+                    .send(reply)
+                    .expect("Could not send to broadcast");
 
                 Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")])
             }
         } else {
-            let Ok(user_database) = users
-                .filter(email.eq(&user.email))
-                .select(User::as_select())
-                .get_result(connection)
-            else {
-                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-            };
+            let database_user = sqlx::query_as!(
+                User,
+                "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
+                user.email
+            )
+            .fetch_one(&self.pool)
+            .await
+            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
-            if let Ok(contact) = Contact::belonging_to(&user_database)
-                .inner_join(users.on(id.eq(crate::schema::contacts::contact_id)))
-                .filter(email.eq(&contact_email))
-                .select(Contact::as_select())
-                .get_result(connection)
-            {
-                if allow_list {
-                    let allow_list = false;
-                    if !contact.in_allow_list {
-                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
-                    }
+            let contact = sqlx::query_as!(
+                Contact,
+                "SELECT contacts.id, user_id, contact_id, contacts.display_name, email, guid,
+                    in_forward_list as `in_forward_list: _`,
+                    in_allow_list as `in_allow_list: _`,
+                    in_block_list as `in_block_list: _`
+                    FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                    WHERE email = ? AND user_id = ?
+                    LIMIT 1",
+                contact_email,
+                database_user.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .or(Err(ErrorCommand::Command(format!("216 {tr_id}\r\n"))))?;
 
-                    if diesel::update(&contact)
-                        .set(in_allow_list.eq(&allow_list))
-                        .execute(connection)
-                        .is_err()
-                    {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                    }
-
-                    if let Some(contact) = user.contacts.get_mut(contact_email) {
-                        contact.in_allow_list = allow_list;
-                    };
+            if allow_list {
+                if !contact.in_allow_list {
+                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
                 }
 
-                if block_list {
-                    let block_list = false;
-                    if !contact.in_block_list {
-                        return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
-                    }
-
-                    if diesel::update(&contact)
-                        .set(in_block_list.eq(&block_list))
-                        .execute(connection)
-                        .is_err()
-                    {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-                    }
-
-                    if let Some(contact) = user.contacts.get_mut(contact_email) {
-                        contact.in_block_list = block_list;
-                    };
-
-                    let nln_command = Nln::convert(user, command);
-                    let thread_message = Message::ToContact {
-                        sender: user.email.clone(),
-                        receiver: contact_email.to_string(),
-                        message: nln_command,
-                    };
-
-                    self.broadcast_tx
-                        .send(thread_message)
-                        .expect("Could not send to broadcast");
+                if sqlx::query!(
+                    "UPDATE contacts SET in_allow_list = FALSE WHERE id = ?",
+                    contact.id
+                )
+                .execute(&self.pool)
+                .await
+                .is_err()
+                {
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
-            } else {
-                return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
-            };
+
+                if let Some(contact) = user.contacts.get_mut(contact_email) {
+                    contact.in_allow_list = false;
+                };
+            }
+
+            if block_list {
+                if !contact.in_block_list {
+                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
+                }
+
+                if sqlx::query!(
+                    "UPDATE contacts SET in_block_list = FALSE WHERE id = ?",
+                    contact.id
+                )
+                .execute(&self.pool)
+                .await
+                .is_err()
+                {
+                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                }
+
+                if let Some(contact) = user.contacts.get_mut(contact_email) {
+                    contact.in_block_list = false;
+                };
+
+                let nln_command = Nln::convert(user, command);
+                let thread_message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: contact_email.to_string(),
+                    message: nln_command,
+                };
+
+                self.broadcast_tx
+                    .send(thread_message)
+                    .expect("Could not send to broadcast");
+            }
 
             Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")])
         }

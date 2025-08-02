@@ -1,24 +1,20 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::schema::users::dsl::{display_name, users};
-use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
-use diesel::{
-    ExpressionMethods, MysqlConnection, RunQueryDsl,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::transient::authenticated_user::AuthenticatedUser;
+use sqlx::{MySql, Pool};
 
 pub struct Prp {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Prp {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Prp { pool }
     }
 }
 
 impl UserCommand for Prp {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -31,16 +27,15 @@ impl UserCommand for Prp {
         let parameter = args[2];
         let user_display_name = args[3];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
-
         if parameter == "MFN" {
-            if diesel::update(users)
-                .filter(email.eq(&user.email))
-                .set(display_name.eq(&user_display_name))
-                .execute(connection)
-                .is_err()
+            if sqlx::query!(
+                "UPDATE users SET display_name = ? WHERE email = ?",
+                user_display_name,
+                user.email
+            )
+            .execute(&self.pool)
+            .await
+            .is_err()
             {
                 return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }

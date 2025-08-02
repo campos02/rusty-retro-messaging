@@ -1,8 +1,3 @@
-use crate::models::code::Code;
-use crate::schema::codes::code;
-use crate::schema::codes::dsl::codes;
-use crate::schema::users::{blp, display_name, dsl::users, gtc, guid, puid};
-use crate::schema::users::{email, password};
 use argon2::{
     Argon2, PasswordHasher,
     password_hash::{
@@ -12,15 +7,10 @@ use argon2::{
 };
 use axum::response::IntoResponse;
 use axum::{Json, extract::State, http::StatusCode};
-use diesel::{
-    ExpressionMethods, MysqlConnection, RunQueryDsl,
-    dsl::insert_into,
-    r2d2::{ConnectionManager, Pool},
-};
-use diesel::{QueryDsl, SelectableHelper};
 use email_address::EmailAddress;
 use log::trace;
 use serde::Deserialize;
+use sqlx::{MySql, Pool};
 
 #[derive(Deserialize)]
 pub(crate) struct CreateUser {
@@ -31,7 +21,7 @@ pub(crate) struct CreateUser {
 }
 
 pub(crate) async fn register(
-    State(pool): State<Pool<ConnectionManager<MysqlConnection>>>,
+    State(pool): State<Pool<MySql>>,
     Json(payload): Json<CreateUser>,
 ) -> impl IntoResponse {
     if payload.password != payload.password_confirmation {
@@ -48,12 +38,9 @@ pub(crate) async fn register(
         );
     }
 
-    let connection = &mut pool.get().expect("Could not get connection from pool");
-
-    if users
-        .filter(email.eq(&payload.email))
-        .select(email)
-        .get_result::<String>(connection)
+    if sqlx::query!("SELECT email FROM users WHERE email = ?", payload.email)
+        .fetch_one(&pool)
+        .await
         .is_ok()
     {
         return (
@@ -62,10 +49,9 @@ pub(crate) async fn register(
         );
     }
 
-    if codes
-        .filter(code.eq(&payload.code))
-        .select(Code::as_select())
-        .get_result(connection)
+    if sqlx::query!("SELECT code FROM codes WHERE code = ?", payload.code)
+        .fetch_one(&pool)
+        .await
         .is_err()
     {
         return (
@@ -77,31 +63,39 @@ pub(crate) async fn register(
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
-    let password_hash = argon2
-        .hash_password(payload.password.as_bytes(), &salt)
-        .expect("Could not hash password")
-        .to_string();
+    let Ok(password_hash) = argon2.hash_password(payload.password.as_bytes(), &salt) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(String::from("Could not hash password")),
+        );
+    };
 
+    let password_hash = password_hash.to_string();
     let passport_id = OsRng.next_u64();
     let user_guid = guid_create::GUID::rand().to_string().to_lowercase();
 
-    insert_into(users)
-        .values((
-            email.eq(&payload.email),
-            password.eq(&password_hash),
-            display_name.eq(&payload.email),
-            puid.eq(&passport_id),
-            guid.eq(&user_guid),
-            gtc.eq(&"A"),
-            blp.eq(&"AL"),
-        ))
-        .execute(connection)
-        .expect("Could not insert new user");
+    if sqlx::query!(
+        "INSERT INTO users (email, password, display_name, puid, guid, gtc, blp) VALUES (?, ?, ?, ?, ?, ?, ?)", 
+        payload.email,
+        password_hash,
+        payload.email,
+        passport_id,
+        user_guid,
+        "A",
+        "AL"
+    )
+        .execute(&pool)
+        .await
+        .is_err() {
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(String::from("Could not register user")),
+        );
+    }
 
     trace!("{} registered", payload.email);
-
     (
         StatusCode::OK,
-        Json(String::from("User created sucessfully")),
+        Json(String::from("User created successfully")),
     )
 }

@@ -1,12 +1,4 @@
-use crate::schema::tokens::dsl::tokens;
-use crate::schema::users::dsl::users;
-use crate::{
-    models::user::User,
-    schema::{
-        tokens::{token, user_id, valid_until},
-        users::email,
-    },
-};
+use crate::models::user::User;
 use argon2::{
     Argon2, PasswordHash, PasswordVerifier,
     password_hash::{SaltString, rand_core},
@@ -17,13 +9,9 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::{Duration, Utc};
-use diesel::{
-    ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    dsl::insert_into,
-    r2d2::{ConnectionManager, Pool},
-};
 use log::trace;
 use regex::Regex;
+use sqlx::{MySql, Pool};
 
 enum HeaderParsingError {
     HeaderNotFound,
@@ -35,20 +23,17 @@ enum HeaderParsingError {
 
 pub(crate) async fn login_server(
     headers: HeaderMap,
-    State(pool): State<Pool<ConnectionManager<MysqlConnection>>>,
+    State(pool): State<Pool<MySql>>,
 ) -> impl IntoResponse {
-    let connection = &mut pool.get().expect("Could not get connection from pool");
     let comma_regex = Regex::new("[^,]*").expect("Could not build regex");
 
-    let Ok(authorization) = headers
+    let authorization = headers
         .get(header::AUTHORIZATION)
         .ok_or(HeaderParsingError::HeaderNotFound)
-        .and_then(|header| header.to_str().map_err(|_| HeaderParsingError::ToStrError))
-    else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
+        .and_then(|header| header.to_str().or(Err(HeaderParsingError::ToStrError)))
+        .or(Err(StatusCode::UNAUTHORIZED))?;
 
-    let Ok(passport) = authorization
+    let passport = authorization
         .split("sign-in=")
         .nth(1)
         .ok_or(HeaderParsingError::ParameterSplitError)
@@ -58,14 +43,12 @@ pub(crate) async fn login_server(
                 .ok_or(HeaderParsingError::CommaRegexError)
                 .and_then(|passport| {
                     urlencoding::decode(passport.as_str())
-                        .map_err(|_| HeaderParsingError::UrlDecodingError)
+                        .or(Err(HeaderParsingError::UrlDecodingError))
                 })
         })
-    else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
+        .or(Err(StatusCode::UNAUTHORIZED))?;
 
-    let Ok(pwd) = authorization
+    let pwd = authorization
         .split("pwd=")
         .nth(1)
         .ok_or(HeaderParsingError::ParameterSplitError)
@@ -75,20 +58,20 @@ pub(crate) async fn login_server(
                 .ok_or(HeaderParsingError::CommaRegexError)
                 .and_then(|passport| {
                     urlencoding::decode(passport.as_str())
-                        .map_err(|_| HeaderParsingError::UrlDecodingError)
+                        .or(Err(HeaderParsingError::UrlDecodingError))
                 })
         })
-    else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
+        .or(Err(StatusCode::UNAUTHORIZED))?;
 
-    let Ok(user) = users
-        .filter(email.eq(&passport))
-        .select(User::as_select())
-        .get_result(connection)
-    else {
-        return Err(StatusCode::UNAUTHORIZED);
-    };
+    let user = sqlx::query_as!(
+        User,
+        "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+        FROM users WHERE email = ? LIMIT 1",
+        passport
+    )
+    .fetch_one(&pool)
+    .await
+    .or(Err(StatusCode::UNAUTHORIZED))?;
 
     let parsed_hash = PasswordHash::new(&user.password).expect("Could not hash password");
     if Argon2::default()
@@ -96,21 +79,22 @@ pub(crate) async fn login_server(
         .is_ok()
     {
         let mut generated_token =
-            urlencoding::encode(SaltString::generate(&mut rand_core::OsRng).as_str()).into_owned();
+            urlencoding::encode(SaltString::generate(&mut rand_core::OsRng).as_str()).to_string();
+
         generated_token.insert_str(0, "t=");
         let datetime = (Utc::now() + Duration::hours(24)).naive_utc();
 
-        insert_into(tokens)
-            .values((
-                token.eq(&generated_token),
-                valid_until.eq(&datetime),
-                user_id.eq(&user.id),
-            ))
-            .execute(connection)
-            .expect("Could not insert token");
+        sqlx::query!(
+            "INSERT INTO tokens (token, valid_until, user_id) VALUES (?, ?, ?)",
+            generated_token,
+            datetime,
+            user.id
+        )
+        .execute(&pool)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
         trace!("Generated token for {}", user.email);
-
         return Ok([(
             "Authentication-Info",
             format!("Passport1.4 da-status=success,from-PP='{generated_token}'"),

@@ -1,25 +1,20 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::schema::users::dsl::users;
-use crate::schema::users::gtc;
-use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
-use diesel::{
-    ExpressionMethods, MysqlConnection, RunQueryDsl,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::transient::authenticated_user::AuthenticatedUser;
+use sqlx::{MySql, Pool};
 
 pub struct Gtc {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Gtc {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Gtc { pool }
     }
 }
 
 impl UserCommand for Gtc {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -31,16 +26,15 @@ impl UserCommand for Gtc {
         let tr_id = args[1];
         let setting = args[2];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
-
         if (setting == "A" || setting == "N")
-            && diesel::update(users)
-                .filter(email.eq(&user.email))
-                .set(gtc.eq(&setting))
-                .execute(connection)
-                .is_err()
+            && sqlx::query!(
+                "UPDATE users SET gtc = ? WHERE email = ?",
+                setting,
+                user.email
+            )
+            .execute(&self.pool)
+            .await
+            .is_err()
         {
             return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
         }

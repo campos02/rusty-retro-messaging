@@ -1,13 +1,10 @@
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use dotenvy::dotenv;
 use env_logger::Env;
 use error_command::ErrorCommand;
 use log::{error, info};
 use message::Message;
 use notification_server::notification_server::NotificationServer;
+use sqlx::MySqlPool;
 use std::{collections::HashMap, env};
 use switchboard::{session::Session, switchboard::Switchboard};
 use tokio::{net::TcpListener, sync::broadcast};
@@ -18,7 +15,6 @@ mod message;
 pub mod models;
 mod notification_server;
 mod receive_split;
-pub mod schema;
 mod switchboard;
 
 #[tokio::main]
@@ -27,10 +23,8 @@ async fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("trace")).init();
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    let manager = ConnectionManager::<MysqlConnection>::new(database_url);
-    let pool = Pool::builder()
-        .test_on_check_out(true)
-        .build(manager)
+    let pool = MySqlPool::connect(&database_url)
+        .await
         .expect("Could not build connection pool");
 
     let notification_server_listener = TcpListener::bind("0.0.0.0:1863")

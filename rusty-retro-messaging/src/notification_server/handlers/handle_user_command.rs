@@ -10,17 +10,14 @@ use crate::{
         rmg::Rmg, sbp::Sbp, sdc::Sdc, syn::Syn, url::Url, uux::Uux, xfr::Xfr,
     },
 };
-use diesel::{
-    MysqlConnection,
-    r2d2::{ConnectionManager, Pool},
-};
 use log::{trace, warn};
+use sqlx::{MySql, Pool};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_user_command(
     protocol_version: usize,
     authenticated_user: &mut AuthenticatedUser,
-    pool: &Pool<ConnectionManager<MysqlConnection>>,
+    pool: &Pool<MySql>,
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,

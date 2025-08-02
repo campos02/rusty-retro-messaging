@@ -1,6 +1,0 @@
-CREATE TABLE tokens (
-  id INTEGER AUTO_INCREMENT PRIMARY KEY,
-  token TEXT NOT NULL,
-  valid_until DATETIME NOT NULL,
-  user_id INTEGER NOT NULL REFERENCES users(id)
-);

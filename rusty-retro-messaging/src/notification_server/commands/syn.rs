@@ -1,36 +1,24 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::schema::contacts::dsl::contacts;
-use crate::schema::group_members::contact_id as member_contact_id;
-use crate::schema::users::dsl::users;
-use crate::{models::group_member::GroupMember, schema::contacts::in_forward_list};
-use crate::{
-    models::transient::{
-        authenticated_user::AuthenticatedUser, transient_contact::TransientContact,
-    },
-    schema::contacts::contact_id,
-};
-use crate::{
-    models::{contact::Contact, group::Group, user::User},
-    schema::users::{email, id},
-};
-use diesel::{
-    BelongingToDsl, ExpressionMethods, MysqlConnection, QueryDsl, RunQueryDsl, SelectableHelper,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::contact::Contact;
+use crate::models::group::Group;
+use crate::models::transient::authenticated_user::AuthenticatedUser;
+use crate::models::transient::transient_contact::TransientContact;
+use crate::models::user::User;
+use sqlx::{MySql, Pool};
 
 pub struct Syn {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Syn {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Syn { pool }
     }
 }
 
 impl UserCommand for Syn {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -41,17 +29,15 @@ impl UserCommand for Syn {
         let first_timestamp = args[2];
         let second_timestamp = args[3];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
-        };
-
-        let Ok(database_user) = users
-            .filter(email.eq(&user.email))
-            .select(User::as_select())
-            .get_result(connection)
-        else {
-            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
-        };
+        let database_user = sqlx::query_as!(
+            User,
+            "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+                FROM users WHERE email = ? LIMIT 1",
+            user.email
+        )
+        .fetch_one(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
         let gtc = &database_user.gtc;
         let mut responses = vec![format!("GTC {gtc}\r\n")];
@@ -64,12 +50,14 @@ impl UserCommand for Syn {
         user.display_name = display_name.clone();
         responses.push(format!("PRP MFN {display_name}\r\n"));
 
-        let Ok(user_groups) = Group::belonging_to(&database_user)
-            .select(Group::as_select())
-            .load(connection)
-        else {
-            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
-        };
+        let user_groups = sqlx::query_as!(
+            Group,
+            "SELECT id, user_id, name, guid FROM groups WHERE user_id = ?",
+            database_user.id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
         let number_of_groups = user_groups.len();
         for group in &user_groups {
@@ -78,23 +66,22 @@ impl UserCommand for Syn {
             responses.push(format!("LSG {name} {guid}\r\n"));
         }
 
-        let Ok(user_contacts) = Contact::belonging_to(&database_user)
-            .select(Contact::as_select())
-            .load(connection)
-        else {
-            return Err(ErrorCommand::Disconnect(format!("603 {tr_id}\r\n")));
-        };
+        let user_contacts = sqlx::query_as!(
+            Contact,
+            "SELECT contacts.id, user_id, contact_id, contacts.display_name, email, guid,
+                in_forward_list as `in_forward_list: _`,
+                in_allow_list as `in_allow_list: _`,
+                in_block_list as `in_block_list: _`
+                FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                WHERE user_id = ?",
+            database_user.id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
 
         let number_of_contacts = user_contacts.len();
         for contact in user_contacts {
-            let Ok(contact_user) = users
-                .filter(id.eq(&contact.contact_id))
-                .select(User::as_select())
-                .get_result(connection)
-            else {
-                continue;
-            };
-
             let mut listbit = 0;
             if contact.in_forward_list {
                 listbit += 1;
@@ -109,7 +96,7 @@ impl UserCommand for Syn {
             }
 
             let transient_contact = TransientContact {
-                email: contact_user.email.clone(),
+                email: contact.email.clone(),
                 display_name: contact.display_name.clone(),
                 presence: None,
                 msn_object: None,
@@ -122,21 +109,23 @@ impl UserCommand for Syn {
                 .insert(transient_contact.email.clone(), transient_contact);
 
             // Make reverse list
-            if Contact::belonging_to(&contact_user)
-                .filter(contact_id.eq(&database_user.id))
-                .filter(in_forward_list.eq(true))
-                .select(Contact::as_select())
-                .get_result(connection)
-                .is_ok()
+            if sqlx::query!(
+                "SELECT id FROM contacts WHERE user_id = ? AND contact_id = ? AND in_forward_list = TRUE LIMIT 1",
+                contact.id,
+                database_user.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .is_ok()
             {
                 listbit += 8;
             }
 
             let display_name = contact.display_name;
-            let contact_email = contact_user.email;
+            let contact_email = contact.email;
+
             if !contact.in_forward_list {
                 let mut lst = format!("LST N={contact_email} F={display_name} {listbit}\r\n");
-
                 if protocol_version >= 12 {
                     // Only the Windows Live type is supported at the moment
                     lst = lst.replace("\r\n", " 1\r\n");
@@ -146,16 +135,18 @@ impl UserCommand for Syn {
                 continue;
             }
 
-            let guid = contact_user.guid;
+            let guid = contact.guid;
             let mut group_list = String::from("");
 
             for group in &user_groups {
-                if GroupMember::belonging_to(&group)
-                    .inner_join(contacts)
-                    .filter(member_contact_id.eq(&contact.id))
-                    .select(Contact::as_select())
-                    .get_result(connection)
-                    .is_ok()
+                if sqlx::query!(
+                    "SELECT id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
+                    group.id,
+                    contact.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .is_ok()
                 {
                     let guid = &group.guid;
                     group_list.push_str(format!("{guid},").as_str());

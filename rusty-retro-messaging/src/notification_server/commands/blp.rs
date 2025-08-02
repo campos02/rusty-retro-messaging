@@ -1,25 +1,20 @@
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
-use crate::schema::users::blp;
-use crate::schema::users::dsl::users;
-use crate::{models::transient::authenticated_user::AuthenticatedUser, schema::users::email};
-use diesel::{
-    ExpressionMethods, MysqlConnection, RunQueryDsl,
-    r2d2::{ConnectionManager, Pool},
-};
+use crate::models::transient::authenticated_user::AuthenticatedUser;
+use sqlx::{MySql, Pool};
 
 pub struct Blp {
-    pool: Pool<ConnectionManager<MysqlConnection>>,
+    pool: Pool<MySql>,
 }
 
 impl Blp {
-    pub fn new(pool: Pool<ConnectionManager<MysqlConnection>>) -> Self {
+    pub fn new(pool: Pool<MySql>) -> Self {
         Blp { pool }
     }
 }
 
 impl UserCommand for Blp {
-    fn handle(
+    async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
@@ -31,16 +26,15 @@ impl UserCommand for Blp {
         let tr_id = args[1];
         let setting = args[2];
 
-        let Ok(connection) = &mut self.pool.get() else {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
-        };
-
         if setting == "AL" || setting == "BL" {
-            if diesel::update(users)
-                .filter(email.eq(&user.email))
-                .set(blp.eq(&setting))
-                .execute(connection)
-                .is_err()
+            if sqlx::query!(
+                "UPDATE users SET blp = ? WHERE email = ?",
+                setting,
+                user.email
+            )
+            .execute(&self.pool)
+            .await
+            .is_err()
             {
                 return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
