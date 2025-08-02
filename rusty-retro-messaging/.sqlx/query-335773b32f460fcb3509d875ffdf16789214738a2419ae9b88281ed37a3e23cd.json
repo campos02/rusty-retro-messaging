@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE contacts SET in_block_list = FALSE WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "335773b32f460fcb3509d875ffdf16789214738a2419ae9b88281ed37a3e23cd"
+}

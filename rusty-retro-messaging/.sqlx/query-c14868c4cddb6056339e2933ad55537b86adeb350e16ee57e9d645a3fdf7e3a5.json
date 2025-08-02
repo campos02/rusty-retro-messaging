@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE contacts SET in_forward_list = FALSE WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "c14868c4cddb6056339e2933ad55537b86adeb350e16ee57e9d645a3fdf7e3a5"
+}

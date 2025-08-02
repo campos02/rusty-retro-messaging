@@ -5,8 +5,6 @@ services:
       args:
         - WEBSITE_URL=$FRONTEND_URL
         - BACKEND_NAME=$BACKEND_NAME
-    depends_on:
-      - r2m
     networks:
       - r2m
   r2m:

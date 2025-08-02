@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "UPDATE contacts SET in_allow_list = FALSE WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "7549f5966712b13a545e18683985aad9afcf37e9ba31d98e6ac943ffb2d43a23"
+}

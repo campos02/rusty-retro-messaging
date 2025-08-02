@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "INSERT INTO contacts (user_id, contact_id, display_name, in_forward_list, in_allow_list, in_block_list)\n                    VALUES (?, ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "53d0d1c2d70511fe81b07b64507d3988f48da2f77127e1150da8a87a28a742c4"
+}

@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT code FROM codes WHERE code = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "code",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "016a4e229c2ac3511bb805bbb1c60f6428321621c2d96402b7032e61873d7681"
+}
