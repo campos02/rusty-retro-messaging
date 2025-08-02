@@ -33,7 +33,7 @@ impl UserCommand for Reg {
             User,
             "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-            user.email
+            *user.email
         )
         .fetch_one(&self.pool)
         .await

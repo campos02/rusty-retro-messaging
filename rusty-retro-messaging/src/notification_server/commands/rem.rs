@@ -9,6 +9,7 @@ use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct Rem {
@@ -34,7 +35,7 @@ impl UserCommand for Rem {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let list = args[2];
-        let contact_email = args[3];
+        let contact_email = Arc::new(args[3].to_string());
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -57,7 +58,7 @@ impl UserCommand for Rem {
                 let database_user = sqlx::query_as!(
                     User,
                     "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
-                    user.email
+                    *user.email
                 )
                 .fetch_one(&self.pool)
                 .await
@@ -82,7 +83,7 @@ impl UserCommand for Rem {
                     FROM contacts INNER JOIN users ON contacts.contact_id = users.id
                     WHERE guid = ? AND user_id = ?
                     LIMIT 1",
-                    contact_guid,
+                    *contact_guid,
                     database_user.id
                 )
                 .fetch_one(&self.pool)
@@ -112,7 +113,7 @@ impl UserCommand for Rem {
                 let database_user = sqlx::query_as!(
                     User,
                     "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
-                    user.email
+                    *user.email
                 )
                 .fetch_one(&self.pool)
                 .await
@@ -127,7 +128,7 @@ impl UserCommand for Rem {
                     FROM contacts INNER JOIN users ON contacts.contact_id = users.id
                     WHERE guid = ? AND user_id = ?
                     LIMIT 1",
-                    contact_guid,
+                    *contact_guid,
                     database_user.id
                 )
                 .fetch_one(&self.pool)
@@ -155,7 +156,7 @@ impl UserCommand for Rem {
 
                 let reply = Message::ToContact {
                     sender: user.email.clone(),
-                    receiver: contact.email,
+                    receiver: Arc::new(contact.email),
                     message: Rem::convert(user, command),
                 };
 
@@ -169,7 +170,7 @@ impl UserCommand for Rem {
             let database_user = sqlx::query_as!(
                 User,
                 "SELECT id, email, password, display_name, puid, guid, gtc, blp FROM users WHERE email = ? LIMIT 1",
-                user.email
+                *user.email
             )
             .fetch_one(&self.pool)
             .await
@@ -184,7 +185,7 @@ impl UserCommand for Rem {
                     FROM contacts INNER JOIN users ON contacts.contact_id = users.id
                     WHERE email = ? AND user_id = ?
                     LIMIT 1",
-                contact_email,
+                *contact_email,
                 database_user.id
             )
             .fetch_one(&self.pool)
@@ -207,7 +208,7 @@ impl UserCommand for Rem {
                     return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
 
-                if let Some(contact) = user.contacts.get_mut(contact_email) {
+                if let Some(contact) = user.contacts.get_mut(&contact_email) {
                     contact.in_allow_list = false;
                 };
             }
@@ -228,14 +229,14 @@ impl UserCommand for Rem {
                     return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
                 }
 
-                if let Some(contact) = user.contacts.get_mut(contact_email) {
+                if let Some(contact) = user.contacts.get_mut(&contact_email) {
                     contact.in_block_list = false;
                 };
 
                 let nln_command = Nln::convert(user, command);
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
-                    receiver: contact_email.to_string(),
+                    receiver: contact_email.clone(),
                     message: nln_command,
                 };
 

@@ -29,13 +29,13 @@ use quick_xml::events::{BytesDecl, Event};
 use sqlx::{MySql, Pool};
 
 enum ElementNotFoundError {
-    HeaderNotFound,
-    BodyNotFound,
-    SecurityNotFound,
-    UsernameTokenNotFound,
-    RequestMultipleSecurityTokensNotFound,
-    PolicyReferenceNotFound,
-    UriNotFound,
+    Header,
+    Body,
+    Security,
+    UsernameToken,
+    RequestMultipleSecurityTokens,
+    PolicyReference,
+    Uri,
 }
 
 pub(crate) async fn rst(
@@ -45,17 +45,17 @@ pub(crate) async fn rst(
     let Ok(username_token) = envelope
         .header
         .as_ref()
-        .ok_or(ElementNotFoundError::HeaderNotFound)
+        .ok_or(ElementNotFoundError::Header)
         .and_then(|header| {
             header
                 .security
                 .as_ref()
-                .ok_or(ElementNotFoundError::SecurityNotFound)
+                .ok_or(ElementNotFoundError::Security)
                 .and_then(|security| {
                     security
                         .username_token
                         .as_ref()
-                        .ok_or(ElementNotFoundError::UsernameTokenNotFound)
+                        .ok_or(ElementNotFoundError::UsernameToken)
                 })
         })
     else {
@@ -113,11 +113,11 @@ pub(crate) async fn rst(
     let Ok(request_multiple_security_tokens) = envelope
         .body
         .as_ref()
-        .ok_or(ElementNotFoundError::BodyNotFound)
+        .ok_or(ElementNotFoundError::Body)
         .and_then(|body| {
             body.request_multiple_security_tokens
                 .as_ref()
-                .ok_or(ElementNotFoundError::RequestMultipleSecurityTokensNotFound)
+                .ok_or(ElementNotFoundError::RequestMultipleSecurityTokens)
         })
     else {
         return invalid_request_envelope();
@@ -184,7 +184,7 @@ pub(crate) async fn rst(
                                 xmlns_ds: Some(XmlnsDsOpenEnumType::XmldSig),
                             },
                             cipher_data: EncryptedDataTypeCipherData {
-                                cipher_value: generated_token.clone().replace("t=", ""),
+                                cipher_value: generated_token.replace("t=", ""),
                             },
                             xmlns: Some(XmlnsOpenEnumType::XmlEnc),
                         }),
@@ -220,12 +220,12 @@ pub(crate) async fn rst(
                 if let Ok(uri) = security_token
                     .policy_reference
                     .as_ref()
-                    .ok_or(ElementNotFoundError::PolicyReferenceNotFound)
+                    .ok_or(ElementNotFoundError::PolicyReference)
                     .and_then(|policy_reference| {
                         policy_reference
                             .uri
                             .as_ref()
-                            .ok_or(ElementNotFoundError::UriNotFound)
+                            .ok_or(ElementNotFoundError::Uri)
                     })
                 {
                     if uri != "?ct=1&rver=1&wp=FS_40SEC_0_COMPACT&lc=1&id=1" {

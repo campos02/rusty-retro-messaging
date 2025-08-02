@@ -144,6 +144,7 @@ pub mod tns {
         #[serde(untagged)]
         String(String),
     }
+    #[allow(clippy::enum_variant_names)]
     #[derive(Debug, Serialize, Deserialize)]
     pub enum FaultCodesType {
         #[serde(rename = "tns:InvalidAddressingHeader")]
@@ -634,6 +635,7 @@ pub mod wsse {
         #[serde(rename = "$text")]
         pub content: String,
     }
+    #[allow(clippy::enum_variant_names)]
     #[derive(Debug, Serialize, Deserialize)]
     pub enum FaultcodeEnumType {
         #[serde(rename = "wsse:UnsupportedSecurityToken")]
@@ -718,6 +720,7 @@ pub mod wst {
         #[serde(rename = "$text")]
         pub content: String,
     }
+    #[allow(clippy::enum_variant_names)]
     #[derive(Debug, Serialize, Deserialize)]
     pub enum BinarySecretTypeEnumType {
         #[serde(rename = "http://schemas.xmlsoap.org/ws/2005/02/trust/AsymmetricKey")]

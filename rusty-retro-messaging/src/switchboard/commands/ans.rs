@@ -9,6 +9,7 @@ use crate::{
     switchboard::session::Session,
 };
 use core::str;
+use std::sync::Arc;
 use tokio::sync::broadcast::{self, error::RecvError};
 
 pub struct Ans;
@@ -23,11 +24,11 @@ impl AuthenticationCommand for Ans {
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
-        let user_email = args[2];
+        let user_email = Arc::new(args[2].to_string());
         let cki_string = args[3];
 
         broadcast_tx
-            .send(Message::GetSession(cki_string.to_string()))
+            .send(Message::GetSession(Arc::new(cki_string.to_string())))
             .expect("Could not send to broadcast");
 
         let mut session;
@@ -47,7 +48,7 @@ impl AuthenticationCommand for Ans {
                 };
 
                 if let Message::Session { key, value } = message {
-                    if key == cki_string {
+                    if *key == cki_string {
                         session = value;
 
                         if !broadcast_rx.is_empty() {
@@ -64,8 +65,8 @@ impl AuthenticationCommand for Ans {
         };
 
         let message = Message::ToContact {
-            sender: user_email.to_string(),
-            receiver: user_email.to_string(),
+            sender: user_email.clone(),
+            receiver: user_email.clone(),
             message: "GetUserDetails".to_string(),
         };
 
@@ -125,7 +126,7 @@ impl AuthenticationCommand for Ans {
             let count = principals.len();
             let mut index = 1;
 
-            for principal in principals.iter().as_ref() {
+            for principal in principals.values() {
                 let email = &principal.email;
                 let display_name = &principal.display_name;
 
@@ -144,17 +145,19 @@ impl AuthenticationCommand for Ans {
                 index += 1;
             }
 
-            principals.push(Principal {
-                email: user_email.to_string(),
-                display_name: authenticated_user.display_name.clone(),
-                client_id: authenticated_user.client_id,
-            });
+            principals.insert(
+                user_email.clone(),
+                Principal {
+                    email: user_email.clone(),
+                    display_name: authenticated_user.display_name.clone(),
+                    client_id: authenticated_user.client_id,
+                },
+            );
         }
 
         let joi = Joi.generate(protocol_version, &mut authenticated_user, tr_id);
-
         let message = Message::ToPrincipals {
-            sender: user_email.to_string(),
+            sender: user_email.clone(),
             message: joi.as_bytes().to_vec(),
         };
 

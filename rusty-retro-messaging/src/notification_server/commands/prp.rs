@@ -2,6 +2,7 @@ use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 
 pub struct Prp {
     pool: Pool<MySql>,
@@ -31,7 +32,7 @@ impl UserCommand for Prp {
             if sqlx::query!(
                 "UPDATE users SET display_name = ? WHERE email = ?",
                 user_display_name,
-                user.email
+                *user.email
             )
             .execute(&self.pool)
             .await
@@ -40,7 +41,7 @@ impl UserCommand for Prp {
                 return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
             }
 
-            user.display_name = user_display_name.to_string();
+            user.display_name = Arc::new(user_display_name.to_string());
         }
 
         Ok(vec![command.to_string()])

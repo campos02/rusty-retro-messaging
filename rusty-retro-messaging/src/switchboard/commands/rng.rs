@@ -2,12 +2,21 @@ use super::traits::thread_command::ThreadCommand;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use std::env;
 
-pub struct Rng {
-    pub session_id: String,
-    pub cki_string: String,
+pub struct Rng<'a> {
+    session_id: &'a str,
+    cki_string: &'a str,
 }
 
-impl ThreadCommand for Rng {
+impl<'a> Rng<'a> {
+    pub fn new(session_id: &'a str, cki_string: &'a str) -> Self {
+        Self {
+            session_id,
+            cki_string,
+        }
+    }
+}
+
+impl<'a> ThreadCommand for Rng<'a> {
     fn generate(
         &self,
         protocol_version: usize,

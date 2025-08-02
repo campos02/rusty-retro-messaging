@@ -1,6 +1,8 @@
+use std::sync::Arc;
+
 pub struct User {
     pub id: i32,
-    pub email: String,
+    pub email: Arc<String>,
     pub password: String,
     pub display_name: String,
     pub puid: u64,

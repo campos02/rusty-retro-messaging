@@ -8,12 +8,13 @@ use crate::{
     },
 };
 use log::{trace, warn};
+use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_thread_command(
     protocol_version: usize,
     authenticated_user: &mut AuthenticatedUser,
-    sender: String,
+    sender: Arc<String>,
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: String,
@@ -25,10 +26,10 @@ pub async fn handle_thread_command(
             trace!("Thread {sender}: {command}");
 
             let presence = args[2];
-            let contact = args[3];
+            let contact = args[3].to_string();
 
-            if let Some(contact) = authenticated_user.contacts.get_mut(contact) {
-                contact.presence = Some(presence.to_string());
+            if let Some(contact) = authenticated_user.contacts.get_mut(&contact) {
+                contact.presence = Some(Arc::new(presence.to_string()));
             }
 
             wr.write_all(command.as_bytes())
@@ -46,10 +47,10 @@ pub async fn handle_thread_command(
             }
 
             let presence = args[1];
-            let contact = args[2];
+            let contact = args[2].to_string();
 
-            if let Some(contact) = authenticated_user.contacts.get_mut(contact) {
-                contact.presence = Some(presence.to_string());
+            if let Some(contact) = authenticated_user.contacts.get_mut(&contact) {
+                contact.presence = Some(Arc::new(presence.to_string()));
             }
 
             wr.write_all(command.as_bytes())
@@ -62,8 +63,8 @@ pub async fn handle_thread_command(
         "FLN" => {
             trace!("Thread {sender}: {command}");
 
-            let contact = args[1].trim();
-            if let Some(contact) = authenticated_user.contacts.get_mut(contact) {
+            let contact = args[1].trim().to_string();
+            if let Some(contact) = authenticated_user.contacts.get_mut(&contact) {
                 contact.presence = None;
             }
 

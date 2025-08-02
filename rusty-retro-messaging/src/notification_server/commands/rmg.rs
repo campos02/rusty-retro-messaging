@@ -37,7 +37,7 @@ impl UserCommand for Rmg {
             INNER JOIN users ON groups.user_id = users.id
             WHERE groups.guid = ? AND email = ? LIMIT 1",
             group_guid,
-            user.email
+            *user.email
         )
         .fetch_one(&self.pool)
         .await

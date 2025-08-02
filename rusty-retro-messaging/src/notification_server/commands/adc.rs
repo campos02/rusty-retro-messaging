@@ -9,6 +9,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::transient::transient_contact::TransientContact;
 use crate::models::user::User;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct Adc {
@@ -48,8 +49,8 @@ impl UserCommand for Adc {
         }
 
         if contact_email.starts_with("N=") {
-            let contact_email = contact_email.replace("N=", "");
-            if contact_email == user.email {
+            let contact_email = Arc::new(contact_email.replace("N=", ""));
+            if *contact_email == *user.email {
                 return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
             }
 
@@ -57,7 +58,7 @@ impl UserCommand for Adc {
                 User,
                 "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-                user.email
+                *user.email
             )
             .fetch_one(&self.pool)
             .await
@@ -67,7 +68,7 @@ impl UserCommand for Adc {
                 User,
                 "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-                contact_email
+                *contact_email
             )
             .fetch_one(&self.pool)
             .await
@@ -82,7 +83,7 @@ impl UserCommand for Adc {
                 FROM contacts INNER JOIN users ON contacts.contact_id = users.id
                 WHERE email = ? AND user_id = ?
                 LIMIT 1",
-                contact_email,
+                *contact_email,
                 database_user.id
             )
             .fetch_one(&self.pool)
@@ -148,7 +149,7 @@ impl UserCommand for Adc {
                 }
             } else {
                 let contact_display_name = if forward_list {
-                    args[4].replace("F=", "")
+                    Arc::new(args[4].replace("F=", ""))
                 } else {
                     contact_email.clone()
                 };
@@ -158,7 +159,7 @@ impl UserCommand for Adc {
                     VALUES (?, ?, ?, ?, ?, ?)",
                     database_user.id,
                     contact_user.id,
-                    contact_display_name,
+                    *contact_display_name,
                     forward_list,
                     allow_list,
                     block_list
@@ -227,7 +228,7 @@ impl UserCommand for Adc {
                 User,
                 "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-                user.email
+                *user.email
             )
             .fetch_one(&self.pool)
             .await

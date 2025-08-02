@@ -7,6 +7,7 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::notification_server::NotificationServer,
 };
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct Uux {
@@ -47,7 +48,7 @@ impl UserCommand for Uux {
 
         let mut payload = payload.to_string();
         payload.truncate(length);
-        user.personal_message = Some(payload);
+        user.personal_message = Some(Arc::new(payload));
 
         for email in user.contacts.keys() {
             if NotificationServer::verify_contact(user, email).is_err() {

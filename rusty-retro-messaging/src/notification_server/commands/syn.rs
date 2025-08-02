@@ -6,6 +6,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::transient::transient_contact::TransientContact;
 use crate::models::user::User;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 
 pub struct Syn {
     pool: Pool<MySql>,
@@ -33,7 +34,7 @@ impl UserCommand for Syn {
             User,
             "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-            user.email
+            *user.email
         )
         .fetch_one(&self.pool)
         .await
@@ -42,13 +43,13 @@ impl UserCommand for Syn {
         let gtc = &database_user.gtc;
         let mut responses = vec![format!("GTC {gtc}\r\n")];
 
-        let blp = &database_user.blp;
-        user.blp = blp.clone();
-        responses.push(format!("BLP {blp}\r\n"));
+        let blp = Arc::new(database_user.blp);
+        user.blp = blp;
+        responses.push(format!("BLP {}\r\n", user.blp));
 
-        let display_name = &database_user.display_name;
-        user.display_name = display_name.clone();
-        responses.push(format!("PRP MFN {display_name}\r\n"));
+        let display_name = database_user.display_name;
+        user.display_name = Arc::new(display_name);
+        responses.push(format!("PRP MFN {}\r\n", user.display_name));
 
         let user_groups = sqlx::query_as!(
             Group,
@@ -95,9 +96,12 @@ impl UserCommand for Syn {
                 listbit += 4;
             }
 
+            let display_name = Arc::new(contact.display_name);
+            let contact_email = Arc::new(contact.email);
+
             let transient_contact = TransientContact {
-                email: contact.email.clone(),
-                display_name: contact.display_name.clone(),
+                email: contact_email.clone(),
+                display_name: display_name.clone(),
                 presence: None,
                 msn_object: None,
                 in_forward_list: contact.in_forward_list,
@@ -120,9 +124,6 @@ impl UserCommand for Syn {
             {
                 listbit += 8;
             }
-
-            let display_name = contact.display_name;
-            let contact_email = contact.email;
 
             if !contact.in_forward_list {
                 let mut lst = format!("LST N={contact_email} F={display_name} {listbit}\r\n");

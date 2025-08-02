@@ -8,6 +8,7 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
 };
 use core::str;
+use std::sync::Arc;
 use tokio::sync::broadcast::{self, error::RecvError};
 
 pub struct Cal {
@@ -32,7 +33,7 @@ impl Command for Cal {
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
         let tr_id = args[1];
-        let email = args[2];
+        let email = Arc::new(args[2].to_string());
 
         {
             let principals = session
@@ -40,18 +41,14 @@ impl Command for Cal {
                 .lock()
                 .expect("Could not get principals, mutex poisoned");
 
-            let user_index = principals
-                .iter()
-                .position(|principal| principal.email == email);
-
-            if user_index.is_some() {
+            if principals.contains_key(&email) {
                 return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
             }
         }
 
         let message = Message::ToContact {
             sender: user.email.clone(),
-            receiver: email.to_string(),
+            receiver: email.clone(),
             message: "GetUserDetails".to_string(),
         };
 
@@ -82,7 +79,7 @@ impl Command for Cal {
                     protocol_version: _,
                 } = message
                 {
-                    if sender == *email {
+                    if sender == email {
                         principal_user = authenticated_user;
 
                         if !broadcast_rx.is_empty() {
@@ -102,22 +99,19 @@ impl Command for Cal {
                     .ok_or(InvitationError::PrincipalOffline)
             })
         {
-            if presence == "HDN" {
+            if *presence == "HDN" {
                 return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
             }
         } else {
             return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
         }
 
-        let rng = Rng {
-            session_id: session.session_id.clone(),
-            cki_string: session.cki_string.clone(),
-        };
-
+        let rng = Rng::new(&session.session_id, &session.cki_string);
         let rng = rng.generate(protocol_version, user, tr_id);
+
         let message = Message::ToContact {
             sender: user.email.clone(),
-            receiver: email.to_string(),
+            receiver: email,
             message: rng,
         };
 

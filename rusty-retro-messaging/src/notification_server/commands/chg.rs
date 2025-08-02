@@ -6,6 +6,7 @@ use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
 };
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct Chg {
@@ -47,7 +48,7 @@ impl UserCommand for Chg {
             _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
         }
 
-        user.presence = Some(args[2].to_string());
+        user.presence = Some(Arc::new(args[2].to_string()));
 
         let Ok(client_id) = args[3].parse() else {
             return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
@@ -55,21 +56,21 @@ impl UserCommand for Chg {
 
         user.client_id = Some(client_id);
         user.msn_object = if args.len() > 4 {
-            Some(args[4].to_string())
+            Some(Arc::new(args[4].to_string()))
         } else {
             None
         };
 
         for email in user.contacts.keys() {
             if let Some(contact) = user.contacts.get(email) {
-                if user.blp == "BL" && !contact.in_allow_list {
+                if *user.blp == "BL" && !contact.in_allow_list {
                     continue;
                 }
 
                 if contact.in_block_list {
                     continue;
                 }
-            } else if user.blp == "BL" {
+            } else if *user.blp == "BL" {
                 continue;
             }
 

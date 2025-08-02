@@ -1,6 +1,8 @@
-#[derive(Debug, Clone)]
+use std::sync::Arc;
+
+#[derive(Debug)]
 pub struct Principal {
-    pub email: String,
-    pub display_name: String,
+    pub email: Arc<String>,
+    pub display_name: Arc<String>,
     pub client_id: Option<usize>,
 }

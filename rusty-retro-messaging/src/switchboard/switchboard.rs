@@ -121,7 +121,7 @@ impl Switchboard {
 
         let principal = args[1];
         if principal
-            == self
+            == *self
                 .authenticated_user
                 .as_ref()
                 .expect("Could not get authenticated user")
@@ -175,12 +175,7 @@ impl Switchboard {
                 .lock()
                 .expect("Could not get principals, mutex poisoned");
 
-            let user_index = principals
-                .iter()
-                .position(|principal| principal.email == authenticated_user.email)
-                .expect("Could not find user among principals");
-
-            principals.swap_remove(user_index);
+            principals.remove(&authenticated_user.email);
         }
 
         let mut bye_command = Bye.generate(

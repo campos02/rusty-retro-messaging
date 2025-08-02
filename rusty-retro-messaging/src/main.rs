@@ -5,6 +5,7 @@ use log::{error, info};
 use message::Message;
 use notification_server::notification_server::NotificationServer;
 use sqlx::MySqlPool;
+use std::sync::Arc;
 use std::{collections::HashMap, env};
 use switchboard::{session::Session, switchboard::Switchboard};
 use tokio::{net::TcpListener, sync::broadcast};
@@ -42,8 +43,8 @@ async fn main() {
     let (tx, mut rx) = broadcast::channel::<Message>(64);
     tokio::spawn(http::listen(pool.clone(), tx.clone()));
 
-    let mut channels: HashMap<String, broadcast::Sender<Message>> = HashMap::new();
-    let mut sessions: HashMap<String, Session> = HashMap::new();
+    let mut channels: HashMap<Arc<String>, broadcast::Sender<Message>> = HashMap::new();
+    let mut sessions: HashMap<Arc<String>, Session> = HashMap::new();
     let mut user_count: u32 = 0;
 
     loop {

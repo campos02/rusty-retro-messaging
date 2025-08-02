@@ -6,6 +6,7 @@ use crate::{
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use rand::distr::SampleString;
 use rand_distr::Alphanumeric;
+use std::collections::HashMap;
 use std::{
     env,
     sync::{Arc, Mutex},
@@ -40,7 +41,7 @@ impl UserCommand for Xfr {
         }
 
         if let Some(presence) = &user.presence {
-            if presence == "HDN" {
+            if **presence == "HDN" {
                 return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));
             }
         } else {
@@ -48,16 +49,16 @@ impl UserCommand for Xfr {
         }
 
         let switchboard_ip = env::var("SWITCHBOARD_IP").expect("SWITCHBOARD_IP not set");
-        let cki_string = Alphanumeric.sample_string(&mut rand::rng(), 16);
+        let cki_string = Arc::new(Alphanumeric.sample_string(&mut rand::rng(), 16));
 
         let (tx, _) = broadcast::channel::<Message>(16);
-        let session_id = format!("{:08}", OsRng.next_u32());
+        let session_id = Arc::new(format!("{:08}", OsRng.next_u32()));
 
         let session = Session {
             session_id,
             cki_string: cki_string.clone(),
             session_tx: tx,
-            principals: Arc::new(Mutex::new(Vec::new())),
+            principals: Arc::new(Mutex::new(HashMap::new())),
         };
 
         self.broadcast_tx

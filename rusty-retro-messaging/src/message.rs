@@ -1,19 +1,20 @@
 use crate::{
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
 };
+use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
 
 #[allow(dead_code)]
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone)]
 pub enum Message {
     GetTx(String),
 
     SetTx {
-        key: String,
+        key: Arc<String>,
         value: Sender<Message>,
     },
 
-    RemoveTx(String),
+    RemoveTx(Arc<String>),
 
     Tx {
         key: String,
@@ -21,40 +22,40 @@ pub enum Message {
     },
 
     ToContact {
-        sender: String,
-        receiver: String,
+        sender: Arc<String>,
+        receiver: Arc<String>,
         message: String,
     },
 
-    GetSession(String),
+    GetSession(Arc<String>),
 
     SetSession {
-        key: String,
+        key: Arc<String>,
         value: Session,
     },
 
-    RemoveSession(String),
+    RemoveSession(Arc<String>),
 
     Session {
-        key: String,
+        key: Arc<String>,
         value: Option<Session>,
     },
 
     ToPrincipals {
-        sender: String,
+        sender: Arc<String>,
         message: Vec<u8>,
     },
 
     SendUserDetails {
-        sender: String,
-        receiver: String,
+        sender: Arc<String>,
+        receiver: Arc<String>,
         authenticated_user: Option<AuthenticatedUser>,
         protocol_version: Option<usize>,
     },
 
     UserDetails {
-        sender: String,
-        receiver: String,
+        sender: Arc<String>,
+        receiver: Arc<String>,
         authenticated_user: Option<AuthenticatedUser>,
         protocol_version: Option<usize>,
     },

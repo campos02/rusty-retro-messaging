@@ -4,6 +4,7 @@ use crate::models::contact::Contact;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 
 pub struct Sbp {
     pool: Pool<MySql>,
@@ -27,14 +28,14 @@ impl UserCommand for Sbp {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = args[1];
         let parameter = args[3];
-        let contact_display_name = args[4];
+        let contact_display_name = Arc::new(args[4].to_string());
 
         if parameter == "MFN" {
             let database_user = sqlx::query_as!(
                 User,
                 "SELECT id, email, password, display_name, puid, guid, gtc, blp 
                 FROM users WHERE email = ? LIMIT 1",
-                user.email
+                *user.email
             )
             .fetch_one(&self.pool)
             .await
@@ -58,7 +59,7 @@ impl UserCommand for Sbp {
 
             if sqlx::query!(
                 "UPDATE contacts SET display_name = ? WHERE id = ?",
-                contact_display_name,
+                *contact_display_name,
                 contact.id
             )
             .execute(&self.pool)
@@ -69,7 +70,7 @@ impl UserCommand for Sbp {
             }
 
             if let Some(contact) = user.contacts.get_mut(&contact.email) {
-                contact.display_name = contact_display_name.to_string();
+                contact.display_name = contact_display_name;
             };
         }
 

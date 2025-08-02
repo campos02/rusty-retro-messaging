@@ -30,7 +30,7 @@ impl UserCommand for Gtc {
             && sqlx::query!(
                 "UPDATE users SET gtc = ? WHERE email = ?",
                 setting,
-                user.email
+                *user.email
             )
             .execute(&self.pool)
             .await
