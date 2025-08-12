@@ -12,7 +12,7 @@ impl Command for Gcf {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
 
         let mut payload = r#"<?xml version= "1.0" encoding="utf-8" ?>"#.to_string();
         payload.push_str(

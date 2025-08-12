@@ -9,7 +9,7 @@ use crate::{
     },
 };
 use core::str;
-use log::{trace, warn};
+use log::{error, trace, warn};
 use tokio::{
     net::tcp::WriteHalf,
     sync::broadcast::{self},
@@ -29,8 +29,13 @@ pub async fn handle_authentication_command(
         + "\r\n";
 
     let args: Vec<&str> = command_string.trim().split(' ').collect();
-    match args[0] {
+    match *args.first().unwrap_or(&"") {
         "USR" => {
+            if args.len() < 4 {
+                error!("Command doesn't have enough arguments: {command_string}");
+                return Err(ErrorCommand::Disconnect("Not enough arguments".to_string()));
+            }
+
             let (protocol_version, session, authenticated_user) =
                 process_authentication_command(broadcast_tx, wr, &Usr, &command).await?;
 
@@ -43,6 +48,11 @@ pub async fn handle_authentication_command(
         }
 
         "ANS" => {
+            if args.len() < 4 {
+                error!("Command doesn't have enough arguments: {command_string}");
+                return Err(ErrorCommand::Disconnect("Not enough arguments".to_string()));
+            }
+
             let (protocol_version, session, authenticated_user) =
                 process_authentication_command(broadcast_tx, wr, &Ans, &command).await?;
 

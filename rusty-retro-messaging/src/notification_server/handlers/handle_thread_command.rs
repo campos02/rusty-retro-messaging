@@ -1,13 +1,10 @@
+use crate::notification_server::commands::{iln, nln, ubx};
 use crate::{
-    error_command::ErrorCommand,
-    message::Message,
+    error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
-    notification_server::{
-        commands::{iln::Iln, nln::Nln, traits::thread_command::ThreadCommand, ubx::Ubx},
-        notification_server::NotificationServer,
-    },
+    notification_server::notification_server::NotificationServer,
 };
-use log::{trace, warn};
+use log::{error, trace, warn};
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
@@ -21,9 +18,14 @@ pub async fn handle_thread_command(
 ) -> Result<(), ErrorCommand> {
     let args: Vec<&str> = command.trim().split(' ').collect();
 
-    match args[0] {
+    match *args.first().unwrap_or(&"") {
         "ILN" => {
             trace!("Thread {sender}: {command}");
+
+            if args.len() < 4 {
+                error!("Command doesn't have enough arguments: {command}");
+                return Ok(());
+            }
 
             let presence = args[2];
             let contact = args[3].to_string();
@@ -42,7 +44,8 @@ pub async fn handle_thread_command(
         "NLN" => {
             trace!("Thread {sender}: {command}");
 
-            if command.len() < 2 {
+            if args.len() < 3 {
+                error!("Command doesn't have enough arguments: {command}");
                 return Ok(());
             }
 
@@ -62,6 +65,11 @@ pub async fn handle_thread_command(
 
         "FLN" => {
             trace!("Thread {sender}: {command}");
+
+            if args.len() < 2 {
+                error!("Command doesn't have enough arguments: {command}");
+                return Ok(());
+            }
 
             let contact = args[1].trim().to_string();
             if let Some(contact) = authenticated_user.contacts.get_mut(&contact) {
@@ -92,7 +100,10 @@ pub async fn handle_thread_command(
                 return Ok(());
             }
 
-            let iln_command = Iln::convert(authenticated_user, &command);
+            let Ok(iln_command) = iln::convert(authenticated_user, &command) else {
+                return Ok(());
+            };
+
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender.clone(),
@@ -103,7 +114,7 @@ pub async fn handle_thread_command(
                 .send(thread_message)
                 .expect("Could not send to broadcast");
 
-            let ubx_command = Ubx::convert(authenticated_user, &command);
+            let ubx_command = ubx::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
@@ -126,7 +137,7 @@ pub async fn handle_thread_command(
                 return Ok(());
             }
 
-            let nln_command = Nln::convert(authenticated_user, &command);
+            let nln_command = nln::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender.clone(),
@@ -137,7 +148,7 @@ pub async fn handle_thread_command(
                 .send(thread_message)
                 .expect("Could not send to broadcast");
 
-            let ubx_command = Ubx::convert(authenticated_user, &command);
+            let ubx_command = ubx::convert(authenticated_user, &command);
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
@@ -165,6 +176,11 @@ pub async fn handle_thread_command(
         }
 
         "RNG" => {
+            if args.len() < 7 {
+                error!("Command doesn't have enough arguments: {command}");
+                return Ok(());
+            }
+
             trace!(
                 "Thread {sender}: {} {} {} {} xxxxx {} {}\r\n",
                 args[0], args[1], args[2], args[3], args[5], args[6]

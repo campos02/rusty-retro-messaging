@@ -22,11 +22,16 @@ impl UserCommand for Prp {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let parameter = args[2];
-        let user_display_name = args[3];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let parameter = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let user_display_name = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         if parameter == "MFN" {
             if sqlx::query!(

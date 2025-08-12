@@ -11,18 +11,21 @@ pub async fn handle_ver(
     let args: Vec<&str> = command.trim().split(' ').collect();
     trace!("C: {command}");
 
-    match args[0] {
+    match *args.first().unwrap_or(&"") {
         "VER" => {
             let responses = process_command(0, wr, &Ver, command).await?;
-            let reply = &responses[0];
+            let reply = responses
+                .first()
+                .ok_or(ErrorCommand::Disconnect("".to_string()))?;
 
             let args: Vec<&str> = reply.trim().split(' ').collect();
-            if args[0] == "VER" {
+            if *args.first().unwrap_or(&"") == "VER" {
                 return Ok(Some(
-                    args[2]
+                    args.get(2)
+                        .unwrap_or(&"")
                         .replace("MSNP", "")
                         .parse::<usize>()
-                        .expect("Could not get protocol version"),
+                        .or(Err(ErrorCommand::Disconnect("".to_string())))?,
                 ));
             }
         }

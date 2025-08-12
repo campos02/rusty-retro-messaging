@@ -25,13 +25,13 @@ pub async fn handle_authentication_command(
     let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
     let args: Vec<&str> = command.trim().split(' ').collect();
 
-    match args[0] {
+    match *args.first().unwrap_or(&"") {
         "CVR" => {
             trace!("C: {command}");
             process_command(protocol_version, wr, &Cvr, command).await?;
         }
 
-        "USR" => match args[3] {
+        "USR" => match *args.get(3).unwrap_or(&"") {
             "I" => {
                 trace!("C: {command}");
                 let usr = UsrI::new(pool.clone());
@@ -59,7 +59,7 @@ pub async fn handle_authentication_command(
 
             _ => {
                 trace!("C: {command}");
-                let tr_id = args[1];
+                let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
                 let err = format!("911 {tr_id}\r\n");
 
                 wr.write_all(err.as_bytes())

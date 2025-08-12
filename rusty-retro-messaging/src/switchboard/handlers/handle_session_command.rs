@@ -35,9 +35,9 @@ pub async fn handle_session_command(
     let args: Vec<&str> = command_string.trim().split(' ').collect();
     trace!("C: {command_string}");
 
-    match args[0] {
+    match *args.first().unwrap_or(&"") {
         "USR" => {
-            let tr_id = args[1];
+            let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
             let err = format!("911 {tr_id}\r\n");
 
             wr.write_all(err.as_bytes())
@@ -48,7 +48,7 @@ pub async fn handle_session_command(
         }
 
         "ANS" => {
-            let tr_id = args[1];
+            let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
             let err = format!("911 {tr_id}\r\n");
 
             wr.write_all(err.as_bytes())

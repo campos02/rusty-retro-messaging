@@ -19,11 +19,14 @@ impl Command for UsrI {
         command: &str,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
 
-        if sqlx::query!("SELECT email FROM users WHERE email = ?", args[4].trim())
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let email = *args
+            .get(4)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        if sqlx::query!("SELECT email FROM users WHERE email = ?", email.trim())
             .fetch_one(&self.pool)
             .await
             .is_err()

@@ -13,14 +13,14 @@ use serde::Deserialize;
 use sqlx::{MySql, Pool};
 
 #[derive(Deserialize)]
-pub(crate) struct CreateUser {
+pub struct CreateUser {
     email: String,
     password: String,
     password_confirmation: String,
     code: String,
 }
 
-pub(crate) async fn register(
+pub async fn register(
     State(pool): State<Pool<MySql>>,
     Json(payload): Json<CreateUser>,
 ) -> impl IntoResponse {

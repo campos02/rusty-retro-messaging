@@ -60,14 +60,17 @@ impl AuthenticationCommand for UsrS {
         command: &str,
     ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let email = *args
+            .get(4)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         let token = sqlx::query_as!(
             Token,
             "SELECT id, token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
-            args[4].trim()
+            email.trim()
         )
         .fetch_one(&self.pool)
         .await

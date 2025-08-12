@@ -1,17 +1,13 @@
 use crate::receive_split::receive_split;
+use crate::switchboard::commands::bye;
 use crate::switchboard::handlers::handle_authentication_command::handle_authentication_command;
 use crate::switchboard::handlers::handle_session_command::handle_session_command;
 use crate::{
-    Message,
-    error_command::ErrorCommand,
-    models::transient::authenticated_user::AuthenticatedUser,
-    switchboard::{
-        commands::{bye::Bye, traits::thread_command::ThreadCommand},
-        session::Session,
-    },
+    Message, error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
 };
 use core::str;
-use log::trace;
+use log::{error, trace};
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpStream, tcp::WriteHalf},
@@ -118,9 +114,12 @@ impl Switchboard {
             + "\r\n";
 
         let args: Vec<&str> = command.trim().split(' ').collect();
+        let Some(principal) = args.get(1) else {
+            error!("Command doesn't have enough arguments: {command}");
+            return Ok(());
+        };
 
-        let principal = args[1];
-        if principal
+        if *principal
             == *self
                 .authenticated_user
                 .as_ref()
@@ -131,7 +130,7 @@ impl Switchboard {
         }
 
         trace!("Thread {sender}: {command}");
-        match args[0] {
+        match *args.first().unwrap_or(&"") {
             "MSG" => {
                 wr.write_all(&message)
                     .await
@@ -161,7 +160,7 @@ impl Switchboard {
         Ok(())
     }
 
-    pub(crate) async fn send_bye_to_principals(&mut self, idling: bool) {
+    pub async fn send_bye_to_principals(&mut self, idling: bool) {
         let authenticated_user = self
             .authenticated_user
             .as_mut()
@@ -178,7 +177,7 @@ impl Switchboard {
             principals.remove(&authenticated_user.email);
         }
 
-        let mut bye_command = Bye.generate(
+        let mut bye_command = bye::generate(
             self.protocol_version
                 .expect("Could not get protocol version"),
             authenticated_user,

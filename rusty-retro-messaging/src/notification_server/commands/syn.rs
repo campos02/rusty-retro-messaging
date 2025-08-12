@@ -26,9 +26,15 @@ impl UserCommand for Syn {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let first_timestamp = args[2];
-        let second_timestamp = args[3];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+
+        let first_timestamp = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let second_timestamp = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         let database_user = sqlx::query_as!(
             User,

@@ -3,9 +3,7 @@ use axum::{Json, extract::State, response::IntoResponse};
 use serde_json::json;
 use tokio::sync::broadcast::{self, error::RecvError};
 
-pub(crate) async fn stats(
-    State(broadcast_tx): State<broadcast::Sender<Message>>,
-) -> impl IntoResponse {
+pub async fn stats(State(broadcast_tx): State<broadcast::Sender<Message>>) -> impl IntoResponse {
     let mut broadcast_rx = broadcast_tx.subscribe();
     broadcast_tx
         .send(Message::GetUsers)

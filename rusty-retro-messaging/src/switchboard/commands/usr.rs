@@ -20,9 +20,15 @@ impl AuthenticationCommand for Usr {
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
-        let tr_id = args[1];
-        let user_email = Arc::new(args[2].to_string());
-        let cki_string = args[3];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let user_email = args
+            .get(2)
+            .map(|str| Arc::new(str.to_string()))
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let cki_string = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         broadcast_tx
             .send(Message::GetSession(Arc::new(cki_string.to_string())))

@@ -12,7 +12,7 @@ impl Command for Sdc {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
 
         Ok(vec![format!("SDC {tr_id} OK\r\n")])
     }

@@ -108,6 +108,11 @@ pub async fn process_user_command(
 
                 if reply.starts_with("XFR") {
                     let args: Vec<&str> = reply.split(' ').collect();
+                    if args.len() < 6 {
+                        error!("Reply doesn't have enough arguments: {reply}");
+                        return Err(ErrorCommand::Command("Not enough arguments".to_string()));
+                    }
+
                     trace!(
                         "S: {} {} {} {} {} xxxxx\r\n",
                         args[0], args[1], args[2], args[3], args[4]

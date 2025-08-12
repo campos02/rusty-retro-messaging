@@ -1,8 +1,5 @@
-use super::{
-    invitation_error::InvitationError,
-    rng::Rng,
-    traits::{command::Command, thread_command::ThreadCommand},
-};
+use super::{invitation_error::InvitationError, rng};
+use crate::switchboard::commands::traits::command::Command;
 use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
@@ -32,8 +29,11 @@ impl Command for Cal {
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
-        let tr_id = args[1];
-        let email = Arc::new(args[2].to_string());
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let email = args
+            .get(2)
+            .map(|str| Arc::new(str.to_string()))
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         {
             let principals = session
@@ -106,8 +106,13 @@ impl Command for Cal {
             return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
         }
 
-        let rng = Rng::new(&session.session_id, &session.cki_string);
-        let rng = rng.generate(protocol_version, user, tr_id);
+        let rng = rng::generate(
+            &session.session_id,
+            &session.cki_string,
+            protocol_version,
+            user,
+            tr_id,
+        );
 
         let message = Message::ToContact {
             sender: user.email.clone(),

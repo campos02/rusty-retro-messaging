@@ -31,10 +31,12 @@ impl UserCommand for Xfr {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let server_type = args[2];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let server_type = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         if server_type != "SB" {
             return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));

@@ -1,7 +1,5 @@
-use super::{
-    fln::Fln,
-    traits::{thread_command::ThreadCommand, user_command::UserCommand},
-};
+use super::fln;
+use crate::notification_server::commands::traits::user_command::UserCommand;
 use crate::{
     error_command::ErrorCommand, message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
@@ -31,12 +29,15 @@ impl UserCommand for Chg {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let status = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         // Validate presence
-        match args[2] {
+        match status {
             "NLN" => (),
             "BSY" => (),
             "IDL" => (),
@@ -48,12 +49,13 @@ impl UserCommand for Chg {
             _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
         }
 
-        user.presence = Some(Arc::new(args[2].to_string()));
+        let client_id = args
+            .get(3)
+            .unwrap_or(&"")
+            .parse()
+            .or(Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))))?;
 
-        let Ok(client_id) = args[3].parse() else {
-            return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
-        };
-
+        user.presence = Some(Arc::new(status.to_string()));
         user.client_id = Some(client_id);
         user.msn_object = if args.len() > 4 {
             Some(Arc::new(args[4].to_string()))
@@ -74,8 +76,8 @@ impl UserCommand for Chg {
                 continue;
             }
 
-            if args[2] != "HDN" {
-                let nln_command = Chg::convert(user, command);
+            if status != "HDN" {
+                let nln_command = convert(user, command);
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
@@ -86,7 +88,7 @@ impl UserCommand for Chg {
                     .send(thread_message)
                     .expect("Could not send to broadcast");
             } else {
-                let fln_command = Fln::convert(user, "");
+                let fln_command = fln::convert(user, "");
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
@@ -117,24 +119,19 @@ impl UserCommand for Chg {
     }
 }
 
-impl ThreadCommand for Chg {
-    fn convert(user: &AuthenticatedUser, command: &str) -> String {
-        let mut args = command.trim().split(' ');
-        args.next();
-        args.next();
+pub fn convert(user: &AuthenticatedUser, command: &str) -> String {
+    let mut args = command.trim().split(' ');
+    let presence = args.nth(2).expect("CHG to be converted has no presence");
+    let client_id = args.next().expect("CHG to be converted has no client id");
+    let mut msn_object = String::from("");
 
-        let presence = args.next().expect("CHG to be converted has no presence");
-        let client_id = args.next().expect("CHG to be converted has no client id");
-        let mut msn_object = String::from("");
-
-        if let Some(object) = args.next() {
-            let mut object = String::from(object);
-            object.insert(0, ' ');
-            msn_object = object;
-        }
-
-        let email = &user.email;
-        let display_name = &user.display_name;
-        format!("NLN {presence} {email} {display_name} {client_id}{msn_object}\r\n")
+    if let Some(object) = args.next() {
+        let mut object = String::from(object);
+        object.insert(0, ' ');
+        msn_object = object;
     }
+
+    let email = &user.email;
+    let display_name = &user.display_name;
+    format!("NLN {presence} {email} {display_name} {client_id}{msn_object}\r\n")
 }

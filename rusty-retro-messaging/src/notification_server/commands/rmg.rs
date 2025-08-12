@@ -22,10 +22,12 @@ impl UserCommand for Rmg {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let group_guid = args[2];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let group_guid = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         if group_guid == "0" {
             return Err(ErrorCommand::Command(format!("230 {tr_id}\r\n")));

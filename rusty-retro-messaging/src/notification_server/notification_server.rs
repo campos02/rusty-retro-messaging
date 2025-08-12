@@ -1,14 +1,12 @@
 use super::contact_verification_error::ContactVerificationError;
+use crate::notification_server::commands::fln;
 use crate::notification_server::handlers::handle_authentication_command::handle_authentication_command;
 use crate::notification_server::handlers::handle_thread_command::handle_thread_command;
 use crate::notification_server::handlers::handle_user_command::handle_user_command;
 use crate::notification_server::handlers::handle_ver::handle_ver;
 use crate::receive_split::receive_split;
 use crate::{
-    Message,
-    error_command::ErrorCommand,
-    models::transient::authenticated_user::AuthenticatedUser,
-    notification_server::commands::{fln::Fln, traits::thread_command::ThreadCommand},
+    Message, error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
 };
 use sqlx::{MySql, Pool};
 use tokio::{
@@ -129,7 +127,7 @@ impl NotificationServer {
         Ok(())
     }
 
-    pub(crate) async fn send_fln_to_contacts(&mut self) {
+    pub async fn send_fln_to_contacts(&mut self) {
         for email in self
             .authenticated_user
             .as_ref()
@@ -137,7 +135,7 @@ impl NotificationServer {
             .contacts
             .keys()
         {
-            let fln_command = Fln::convert(
+            let fln_command = fln::convert(
                 self.authenticated_user
                     .as_ref()
                     .expect("Could not get authenticated user"),
@@ -161,7 +159,7 @@ impl NotificationServer {
         }
     }
 
-    pub(crate) fn verify_contact(
+    pub fn verify_contact(
         authenticated_user: &AuthenticatedUser,
         email: &String,
     ) -> Result<(), ContactVerificationError> {

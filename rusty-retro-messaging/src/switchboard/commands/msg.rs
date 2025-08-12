@@ -26,10 +26,18 @@ impl Command for Msg {
 
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let ack_type = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let length = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
         let email = &user.email;
         let display_name = &user.display_name;
 
-        let length = args[3];
         let async_msg = str::into_boxed_bytes(Box::from(format!(
             "MSG {email} {display_name} {length}\r\n"
         )));
@@ -47,8 +55,7 @@ impl Command for Msg {
             .send(message)
             .expect("Could not send to session");
 
-        if args[2] == "A" || args[2] == "D" {
-            let tr_id = args[1];
+        if ack_type == "A" || ack_type == "D" {
             return Ok(vec![format!("ACK {tr_id}\r\n")]);
         }
 

@@ -1,5 +1,3 @@
-use super::nln::Nln;
-use super::traits::thread_command::ThreadCommand;
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::message::Message;
@@ -8,6 +6,7 @@ use crate::models::group::Group;
 use crate::models::group_member::GroupMember;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
+use crate::notification_server::commands::nln;
 use sqlx::{MySql, Pool};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -31,11 +30,17 @@ impl UserCommand for Rem {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let list = args[2];
-        let contact_email = Arc::new(args[3].to_string());
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let list = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let contact_email = args
+            .get(3)
+            .map(|str| Arc::new(str.to_string()))
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -157,7 +162,7 @@ impl UserCommand for Rem {
                 let reply = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: Arc::new(contact.email),
-                    message: Rem::convert(user, command),
+                    message: convert(user, command),
                 };
 
                 self.broadcast_tx
@@ -233,7 +238,7 @@ impl UserCommand for Rem {
                     contact.in_block_list = false;
                 };
 
-                let nln_command = Nln::convert(user, command);
+                let nln_command = nln::convert(user, command);
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
@@ -250,11 +255,9 @@ impl UserCommand for Rem {
     }
 }
 
-impl ThreadCommand for Rem {
-    fn convert(user: &AuthenticatedUser, command: &str) -> String {
-        let _ = command;
-        let user_email = &user.email;
+pub fn convert(user: &AuthenticatedUser, command: &str) -> String {
+    let _ = command;
+    let user_email = &user.email;
 
-        format!("REM 0 RL N={user_email}\r\n")
-    }
+    format!("REM 0 RL N={user_email}\r\n")
 }

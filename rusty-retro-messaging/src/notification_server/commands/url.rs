@@ -13,7 +13,7 @@ impl Command for Url {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
         let server_name = env::var("SERVER_NAME").expect("SERVER_NAME not set");
 
         Ok(vec![format!(

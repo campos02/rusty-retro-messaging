@@ -24,11 +24,21 @@ impl UserCommand for Sbp {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let parameter = args[3];
-        let contact_display_name = Arc::new(args[4].to_string());
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let guid = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let parameter = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let contact_display_name = args
+            .get(4)
+            .map(|str| Arc::new(str.to_string()))
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         if parameter == "MFN" {
             let database_user = sqlx::query_as!(
@@ -50,7 +60,7 @@ impl UserCommand for Sbp {
                 FROM contacts INNER JOIN users ON contacts.contact_id = users.id
                 WHERE guid = ? AND user_id = ?
                 LIMIT 1",
-                args[2],
+                guid,
                 database_user.id
             )
             .fetch_one(&self.pool)

@@ -38,7 +38,7 @@ enum ElementNotFoundError {
     Uri,
 }
 
-pub(crate) async fn rst(
+pub async fn rst(
     State(pool): State<Pool<MySql>>,
     Xml(envelope): Xml<Envelope>,
 ) -> impl IntoResponse {

@@ -21,7 +21,7 @@ enum HeaderParsingError {
     UrlDecodingError,
 }
 
-pub(crate) async fn login_server(
+pub async fn login_server(
     headers: HeaderMap,
     State(pool): State<Pool<MySql>>,
 ) -> impl IntoResponse {

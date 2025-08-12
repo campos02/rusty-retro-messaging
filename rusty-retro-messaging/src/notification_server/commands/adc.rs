@@ -1,5 +1,3 @@
-use super::fln::Fln;
-use super::traits::thread_command::ThreadCommand;
 use super::traits::user_command::UserCommand;
 use crate::error_command::ErrorCommand;
 use crate::message::Message;
@@ -8,6 +6,7 @@ use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::transient::transient_contact::TransientContact;
 use crate::models::user::User;
+use crate::notification_server::commands::fln;
 use sqlx::{MySql, Pool};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -31,11 +30,16 @@ impl UserCommand for Adc {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let list = args[2];
-        let contact_email = args[3];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let list = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+
+        let contact_email = *args
+            .get(3)
+            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -148,8 +152,8 @@ impl UserCommand for Adc {
                     };
                 }
             } else {
-                let contact_display_name = if forward_list {
-                    Arc::new(args[4].replace("F=", ""))
+                let contact_display_name = if forward_list && let Some(display_name) = args.get(4) {
+                    Arc::new(display_name.replace("F=", ""))
                 } else {
                     contact_email.clone()
                 };
@@ -187,12 +191,14 @@ impl UserCommand for Adc {
 
             return if forward_list {
                 let contact_guid = contact_user.guid;
-                let contact_display_name = args[4];
+                let contact_display_name = *args
+                    .get(4)
+                    .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
 
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
-                    message: Adc::convert(user, command),
+                    message: convert(user, command),
                 };
 
                 self.broadcast_tx
@@ -204,7 +210,7 @@ impl UserCommand for Adc {
                 )])
             } else {
                 if block_list {
-                    let fln_command = Fln::convert(user, command);
+                    let fln_command = fln::convert(user, command);
                     let message = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email.clone(),
@@ -221,7 +227,11 @@ impl UserCommand for Adc {
         // Add to group
         } else if contact_email.starts_with("C=") && list == "FL" {
             let contact_guid = contact_email.replace("C=", "");
-            let contact_display_name = args[4].replace("F=", "");
+            let contact_display_name = args
+                .get(4)
+                .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?
+                .replace("F=", "");
+
             let group_guid = contact_display_name.replace("C=", "");
 
             let database_user = sqlx::query_as!(
@@ -290,12 +300,10 @@ impl UserCommand for Adc {
     }
 }
 
-impl ThreadCommand for Adc {
-    fn convert(user: &AuthenticatedUser, command: &str) -> String {
-        let _ = command;
-        let user_email = &user.email;
-        let user_display_name = &user.display_name;
+pub fn convert(user: &AuthenticatedUser, command: &str) -> String {
+    let _ = command;
+    let user_email = &user.email;
+    let user_display_name = &user.display_name;
 
-        format!("ADC 0 RL N={user_email} F={user_display_name}\r\n")
-    }
+    format!("ADC 0 RL N={user_email} F={user_display_name}\r\n")
 }

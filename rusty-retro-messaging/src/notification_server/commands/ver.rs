@@ -13,7 +13,7 @@ impl Command for Ver {
 
         let versions = vec!["MSNP12", "MSNP11"];
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
 
         for i in &args {
             for version in &versions {

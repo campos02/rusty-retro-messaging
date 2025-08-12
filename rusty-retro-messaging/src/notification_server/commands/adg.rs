@@ -22,10 +22,12 @@ impl UserCommand for Adg {
         user: &mut AuthenticatedUser,
     ) -> Result<Vec<String>, ErrorCommand> {
         let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = args[1];
-        let group_name = args[2];
+
+        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let group_name = *args
+            .get(2)
+            .ok_or(ErrorCommand::Command(format!("228 {tr_id}\r\n")))?;
 
         let database_user = sqlx::query_as!(
             User,
