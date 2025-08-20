@@ -20,11 +20,12 @@ use argon2::password_hash::{
     rand_core::{self, RngCore},
 };
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use axum::http::StatusCode;
 use axum::{extract::State, response::IntoResponse};
 use axum_serde::Xml;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Duration, Utc};
-use log::trace;
+use log::{error, trace};
 use quick_xml::events::{BytesDecl, Event};
 use sqlx::{MySql, Pool};
 
@@ -59,6 +60,7 @@ pub async fn rst(
                 })
         })
     else {
+        error!("Error getting username and password from XML");
         return invalid_request_envelope();
     };
 
@@ -74,11 +76,18 @@ pub async fn rst(
         return invalid_request_envelope();
     };
 
-    let parsed_hash = PasswordHash::new(&user.password).expect("Could not hash password");
-    if Argon2::default()
-        .verify_password(username_token.password.content.as_bytes(), &parsed_hash)
-        .is_err()
+    let parsed_hash = match PasswordHash::new(&user.password) {
+        Ok(parsed_hash) => parsed_hash,
+        Err(error) => {
+            error!("Error hashing password: {error}");
+            return failed_authentication_envelope();
+        }
+    };
+
+    if let Err(error) =
+        Argon2::default().verify_password(username_token.password.content.as_bytes(), &parsed_hash)
     {
+        error!("Error verifying password: {error}");
         return failed_authentication_envelope();
     }
 
@@ -129,6 +138,12 @@ pub async fn rst(
             return invalid_request_envelope();
         };
 
+        let Some(security_token_id) = security_token.id.as_ref() else {
+            return invalid_request_envelope();
+        };
+
+        let security_token_id = security_token_id.replace("RST", "");
+
         match applies_to.endpoint_reference.address.content.as_str() {
             "http://Passport.NET/tb" => {
                 request_security_token_response.push(RequestSecurityTokenResponse {
@@ -160,15 +175,7 @@ pub async fn rst(
                                     "http://www.w3.org/2001/04/xmlenc#tripledes-cbc".to_string(),
                                 ),
                             },
-                            id: Some(
-                                "BinaryDAToken".to_string()
-                                    + security_token
-                                        .id
-                                        .as_ref()
-                                        .expect("No security token id")
-                                        .replace("RST", "")
-                                        .as_str(),
-                            ),
+                            id: Some("BinaryDAToken".to_string() + security_token_id.as_str()),
                             type_: Some("http://www.w3.org/2001/04/xmlenc#Element".to_string()),
                             key_info: KeyInfo {
                                 id: None,
@@ -197,15 +204,7 @@ pub async fn rst(
                             value_type: Some("urn:passport".to_string()),
                         },
                         reference: wsse::Reference {
-                            uri: Some(
-                                "#BinaryDAToken".to_string()
-                                    + security_token
-                                        .id
-                                        .as_ref()
-                                        .expect("No security token id")
-                                        .replace("RST", "")
-                                        .as_str(),
-                            ),
+                            uri: Some("#BinaryDAToken".to_string() + security_token_id.as_str()),
                         },
                     }),
                     requested_proof_token: Some(RequestedProofToken {
@@ -260,15 +259,7 @@ pub async fn rst(
                     requested_security_token: Some(RequestedSecurityToken {
                         encrypted_data: None,
                         binary_security_token: Some(BinarySecurityToken {
-                            id: Some(
-                                "Compact".to_string()
-                                    + security_token
-                                        .id
-                                        .as_ref()
-                                        .expect("No security token id")
-                                        .replace("RST", "")
-                                        .as_str(),
-                            ),
+                            id: Some("Compact".to_string() + security_token_id.as_str()),
                             content: generated_token.clone(),
                         }),
                     }),
@@ -279,15 +270,7 @@ pub async fn rst(
                             value_type: Some("urn:passport:compact".to_string()),
                         },
                         reference: wsse::Reference {
-                            uri: Some(
-                                "#Compact".to_string()
-                                    + security_token
-                                        .id
-                                        .as_ref()
-                                        .expect("No security token id")
-                                        .replace("RST", "")
-                                        .as_str(),
-                            ),
+                            uri: Some("#Compact".to_string() + security_token_id.as_str()),
                         },
                     }),
                     requested_proof_token: None,
@@ -353,17 +336,17 @@ pub async fn rst(
 
     writer
         .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))
-        .expect("Could not write XML header");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
     writer
         .write_serializable("S:Envelope", &envelope)
-        .expect("Could not serialize Envelope");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
     trace!("Serialized RST response for {}", user.email);
-
-    String::from_utf8(buffer).expect("XML is not UTF-8")
+    String::from_utf8(buffer).or(Err(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
-fn invalid_request_envelope() -> String {
+fn invalid_request_envelope() -> Result<String, StatusCode> {
     let envelope = Envelope {
         fault: Some(Fault {
             faultcode: "S:Client".to_string(),
@@ -381,15 +364,16 @@ fn invalid_request_envelope() -> String {
 
     writer
         .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))
-        .expect("Could not write XML header");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
     writer
         .write_serializable("S:Envelope", &envelope)
-        .expect("Could not serialize Envelope");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
-    String::from_utf8(buffer).expect("XML is not UTF-8")
+    String::from_utf8(buffer).or(Err(StatusCode::INTERNAL_SERVER_ERROR))
 }
 
-fn failed_authentication_envelope() -> String {
+fn failed_authentication_envelope() -> Result<String, StatusCode> {
     let envelope = Envelope {
         header: Some(Header {
             pp: Some(Pp {
@@ -436,10 +420,11 @@ fn failed_authentication_envelope() -> String {
 
     writer
         .write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))
-        .expect("Could not write XML header");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
     writer
         .write_serializable("S:Envelope", &envelope)
-        .expect("Could not serialize Envelope");
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
-    String::from_utf8(buffer).expect("XML is not UTF-8")
+    String::from_utf8(buffer).or(Err(StatusCode::INTERNAL_SERVER_ERROR))
 }

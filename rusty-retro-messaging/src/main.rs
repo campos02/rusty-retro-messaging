@@ -78,9 +78,13 @@ async fn main() {
                                     if let Err(error) = connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())) {
                                         error!("Could not remove user tx: {error}");
                                     }
-                                    connection.send_fln_to_contacts().await;
+
+                                    if let Err(ErrorCommand::Disconnect(error)) = connection.send_fln_to_contacts().await {
+                                        error!("Could not send FLN to contacts: {error}");
+                                    }
                                 }
                             }
+
                             break;
                         }
                     }
@@ -108,7 +112,10 @@ async fn main() {
                                 if let Err(error) = connection.broadcast_tx.send(Message::RemoveSession(session.session_id.clone())) {
                                     error!("Could not remove session: {error}");
                                 }
-                                connection.send_bye_to_principals(false).await;
+
+                                if let Err(ErrorCommand::Disconnect(error)) = connection.send_bye_to_principals(false).await {
+                                    error!("Could not send BYE to principals: {error}");
+                                }
                             }
                             break;
                         }

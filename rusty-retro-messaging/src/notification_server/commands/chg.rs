@@ -81,12 +81,14 @@ impl UserCommand for Chg {
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
-                    message: nln_command,
+                    message: nln_command?,
                 };
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
             } else {
                 let fln_command = fln::convert(user, "");
                 let message = Message::ToContact {
@@ -97,7 +99,9 @@ impl UserCommand for Chg {
 
                 self.broadcast_tx
                     .send(message)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
 
                 continue;
             }
@@ -111,7 +115,9 @@ impl UserCommand for Chg {
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
             }
         }
 
@@ -119,10 +125,16 @@ impl UserCommand for Chg {
     }
 }
 
-pub fn convert(user: &AuthenticatedUser, command: &str) -> String {
+pub fn convert(user: &AuthenticatedUser, command: &str) -> Result<String, ErrorCommand> {
     let mut args = command.trim().split(' ');
-    let presence = args.nth(2).expect("CHG to be converted has no presence");
-    let client_id = args.next().expect("CHG to be converted has no client id");
+    let presence = args.nth(2).ok_or(ErrorCommand::Command(
+        "CHG to be converted has no presence".to_string(),
+    ))?;
+
+    let client_id = args.next().ok_or(ErrorCommand::Command(
+        "CHG to be converted has no client id".to_string(),
+    ))?;
+
     let mut msn_object = String::from("");
 
     if let Some(object) = args.next() {
@@ -133,5 +145,7 @@ pub fn convert(user: &AuthenticatedUser, command: &str) -> String {
 
     let email = &user.email;
     let display_name = &user.display_name;
-    format!("NLN {presence} {email} {display_name} {client_id}{msn_object}\r\n")
+    Ok(format!(
+        "NLN {presence} {email} {display_name} {client_id}{msn_object}\r\n"
+    ))
 }

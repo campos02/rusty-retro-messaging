@@ -20,7 +20,9 @@ impl Command for Msg {
         let command_string = command_string
             .lines()
             .next()
-            .expect("Could not get command from client message")
+            .ok_or(ErrorCommand::Command(
+                "Could not get command from client message".to_string(),
+            ))?
             .to_string()
             + "\r\n";
 
@@ -53,7 +55,7 @@ impl Command for Msg {
         session
             .session_tx
             .send(message)
-            .expect("Could not send to session");
+            .or(Err(ErrorCommand::Command(format!("NAK {tr_id}\r\n"))))?;
 
         if ack_type == "A" || ack_type == "D" {
             return Ok(vec![format!("ACK {tr_id}\r\n")]);

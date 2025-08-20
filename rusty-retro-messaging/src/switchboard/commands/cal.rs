@@ -26,6 +26,8 @@ impl Command for Cal {
         session: &mut Session,
         command: &[u8],
     ) -> Result<Vec<String>, ErrorCommand> {
+        let _ = protocol_version;
+
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
@@ -39,7 +41,7 @@ impl Command for Cal {
             let principals = session
                 .principals
                 .lock()
-                .expect("Could not get principals, mutex poisoned");
+                .or(Err(ErrorCommand::Disconnect(format!("500 {tr_id}\r\n"))))?;
 
             if principals.contains_key(&email) {
                 return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
@@ -54,7 +56,9 @@ impl Command for Cal {
 
         self.broadcast_tx
             .send(message)
-            .expect("Could not send to broadcast");
+            .or(Err(ErrorCommand::Disconnect(
+                "Could not send to broadcast".to_string(),
+            )))?;
 
         let mut principal_user;
 
@@ -106,14 +110,7 @@ impl Command for Cal {
             return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
         }
 
-        let rng = rng::generate(
-            &session.session_id,
-            &session.cki_string,
-            protocol_version,
-            user,
-            tr_id,
-        );
-
+        let rng = rng::generate(&session.session_id, &session.cki_string, user, tr_id)?;
         let message = Message::ToContact {
             sender: user.email.clone(),
             receiver: email,

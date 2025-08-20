@@ -20,7 +20,9 @@ pub async fn process_command(
             for reply in &responses {
                 wr.write_all(reply.as_bytes())
                     .await
-                    .expect("Could not send to client over socket");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to client over socket".to_string(),
+                    )))?;
 
                 trace!("S: {reply}");
             }
@@ -30,7 +32,9 @@ pub async fn process_command(
         Err(ErrorCommand::Command(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
             Err(ErrorCommand::Command(err))
@@ -39,7 +43,9 @@ pub async fn process_command(
         Err(ErrorCommand::Disconnect(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             error!("S: {err}");
             Err(ErrorCommand::Disconnect(err))
@@ -62,7 +68,9 @@ pub async fn process_authentication_command(
             for reply in &responses {
                 wr.write_all(reply.as_bytes())
                     .await
-                    .expect("Could not send to client over socket");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to client over socket".to_string(),
+                    )))?;
 
                 trace!("S: {reply}");
             }
@@ -72,7 +80,9 @@ pub async fn process_authentication_command(
         Err(ErrorCommand::Command(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
             Err(ErrorCommand::Command(err))
@@ -81,7 +91,9 @@ pub async fn process_authentication_command(
         Err(ErrorCommand::Disconnect(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             error!("S: {err}");
             Err(ErrorCommand::Disconnect(err))
@@ -104,7 +116,9 @@ pub async fn process_user_command(
             for reply in &responses {
                 wr.write_all(reply.as_bytes())
                     .await
-                    .expect("Could not send to client over socket");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to client over socket".to_string(),
+                    )))?;
 
                 if reply.starts_with("XFR") {
                     let args: Vec<&str> = reply.split(' ').collect();
@@ -128,7 +142,9 @@ pub async fn process_user_command(
         Err(ErrorCommand::Command(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
             Err(ErrorCommand::Command(err))
@@ -137,7 +153,9 @@ pub async fn process_user_command(
         Err(ErrorCommand::Disconnect(err)) => {
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             error!("S: {err}");
             Err(ErrorCommand::Disconnect(err))

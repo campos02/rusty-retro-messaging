@@ -29,7 +29,7 @@ impl UserCommand for Uux {
         let mut command_lines = command.lines();
         let args: Vec<&str> = command_lines
             .next()
-            .expect("Could not get UUX command from message")
+            .ok_or(ErrorCommand::Command("".to_string()))?
             .split(' ')
             .collect();
 
@@ -53,7 +53,7 @@ impl UserCommand for Uux {
                 continue;
             }
 
-            let ubx_command = ubx::convert(user, command);
+            let ubx_command = ubx::convert(user)?;
             let thread_message = Message::ToContact {
                 sender: user.email.clone(),
                 receiver: email.clone(),
@@ -62,7 +62,9 @@ impl UserCommand for Uux {
 
             self.broadcast_tx
                 .send(thread_message)
-                .expect("Could not send to broadcast");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to broadcast".to_string(),
+                )))?;
         }
 
         Ok(vec![format!("UUX {tr_id} 0\r\n")])

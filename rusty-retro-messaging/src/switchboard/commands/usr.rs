@@ -32,7 +32,9 @@ impl AuthenticationCommand for Usr {
 
         broadcast_tx
             .send(Message::GetSession(Arc::new(cki_string.to_string())))
-            .expect("Could not send to broadcast");
+            .or(Err(ErrorCommand::Disconnect(
+                "Could not send to broadcast".to_string(),
+            )))?;
 
         let mut session;
 
@@ -73,9 +75,9 @@ impl AuthenticationCommand for Usr {
             message: "GetUserDetails".to_string(),
         };
 
-        broadcast_tx
-            .send(message)
-            .expect("Could not send to broadcast");
+        broadcast_tx.send(message).or(Err(ErrorCommand::Disconnect(
+            "Could not send to broadcast".to_string(),
+        )))?;
 
         let mut authenticated_user_result;
         let mut protocol_version_result;
@@ -114,10 +116,13 @@ impl AuthenticationCommand for Usr {
             }
         }
 
-        let authenticated_user: AuthenticatedUser =
-            authenticated_user_result.expect("Could not get authenticated user");
+        let authenticated_user: AuthenticatedUser = authenticated_user_result.ok_or(
+            ErrorCommand::Disconnect("Could not get authenticated user".to_string()),
+        )?;
 
-        let protocol_version = protocol_version_result.expect("Could not get protocol version");
+        let protocol_version = protocol_version_result.ok_or(ErrorCommand::Disconnect(
+            "Could not get protocol version".to_string(),
+        ))?;
         let user_email = &authenticated_user.email;
         let user_display_name = &authenticated_user.display_name;
 
@@ -125,7 +130,7 @@ impl AuthenticationCommand for Usr {
             let mut principals = session
                 .principals
                 .lock()
-                .expect("Could not get principals, mutex poisoned");
+                .or(Err(ErrorCommand::Command(format!("500 {tr_id}\r\n"))))?;
 
             principals.insert(
                 user_email.clone(),

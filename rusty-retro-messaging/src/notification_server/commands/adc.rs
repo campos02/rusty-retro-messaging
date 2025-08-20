@@ -203,7 +203,9 @@ impl UserCommand for Adc {
 
                 self.broadcast_tx
                     .send(message)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
 
                 Ok(vec![format!(
                     "ADC {tr_id} {list} N={contact_email} {contact_display_name} C={contact_guid}\r\n"
@@ -219,7 +221,9 @@ impl UserCommand for Adc {
 
                     self.broadcast_tx
                         .send(message)
-                        .expect("Could not send to broadcast");
+                        .or(Err(ErrorCommand::Disconnect(
+                            "Could not send to broadcast".to_string(),
+                        )))?;
                 }
 
                 Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")])

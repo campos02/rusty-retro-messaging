@@ -10,14 +10,12 @@ use axum::{
 };
 use chrono::{Duration, Utc};
 use log::trace;
-use regex::Regex;
 use sqlx::{MySql, Pool};
 
 enum HeaderParsingError {
     HeaderNotFound,
     ToStrError,
     ParameterSplitError,
-    CommaRegexError,
     UrlDecodingError,
 }
 
@@ -25,8 +23,6 @@ pub async fn login_server(
     headers: HeaderMap,
     State(pool): State<Pool<MySql>>,
 ) -> impl IntoResponse {
-    let comma_regex = Regex::new("[^,]*").expect("Could not build regex");
-
     let authorization = headers
         .get(header::AUTHORIZATION)
         .ok_or(HeaderParsingError::HeaderNotFound)
@@ -38,12 +34,12 @@ pub async fn login_server(
         .nth(1)
         .ok_or(HeaderParsingError::ParameterSplitError)
         .and_then(|split| {
-            comma_regex
-                .find(split)
-                .ok_or(HeaderParsingError::CommaRegexError)
+            split
+                .split(",")
+                .next()
+                .ok_or(HeaderParsingError::ParameterSplitError)
                 .and_then(|passport| {
-                    urlencoding::decode(passport.as_str())
-                        .or(Err(HeaderParsingError::UrlDecodingError))
+                    urlencoding::decode(passport).or(Err(HeaderParsingError::UrlDecodingError))
                 })
         })
         .or(Err(StatusCode::UNAUTHORIZED))?;
@@ -53,12 +49,12 @@ pub async fn login_server(
         .nth(1)
         .ok_or(HeaderParsingError::ParameterSplitError)
         .and_then(|split| {
-            comma_regex
-                .find(split)
-                .ok_or(HeaderParsingError::CommaRegexError)
-                .and_then(|passport| {
-                    urlencoding::decode(passport.as_str())
-                        .or(Err(HeaderParsingError::UrlDecodingError))
+            split
+                .split(",")
+                .next()
+                .ok_or(HeaderParsingError::ParameterSplitError)
+                .and_then(|password| {
+                    urlencoding::decode(password).or(Err(HeaderParsingError::UrlDecodingError))
                 })
         })
         .or(Err(StatusCode::UNAUTHORIZED))?;
@@ -73,7 +69,9 @@ pub async fn login_server(
     .await
     .or(Err(StatusCode::UNAUTHORIZED))?;
 
-    let parsed_hash = PasswordHash::new(&user.password).expect("Could not hash password");
+    let parsed_hash =
+        PasswordHash::new(&user.password).or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
     if Argon2::default()
         .verify_password(pwd.as_bytes(), &parsed_hash)
         .is_ok()

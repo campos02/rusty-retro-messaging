@@ -7,7 +7,10 @@ pub async fn handle_ver(
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,
 ) -> Result<Option<usize>, ErrorCommand> {
-    let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
+    let command = str::from_utf8(&command).or(Err(ErrorCommand::Disconnect(
+        "Command contained invalid UTF-8".to_string(),
+    )))?;
+
     let args: Vec<&str> = command.trim().split(' ').collect();
     trace!("C: {command}");
 

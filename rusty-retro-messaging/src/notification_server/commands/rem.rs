@@ -167,7 +167,9 @@ impl UserCommand for Rem {
 
                 self.broadcast_tx
                     .send(reply)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
 
                 Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")])
             }
@@ -238,7 +240,7 @@ impl UserCommand for Rem {
                     contact.in_block_list = false;
                 };
 
-                let nln_command = nln::convert(user, command);
+                let nln_command = nln::convert(user)?;
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
@@ -247,7 +249,9 @@ impl UserCommand for Rem {
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .expect("Could not send to broadcast");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to broadcast".to_string(),
+                    )))?;
             }
 
             Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")])

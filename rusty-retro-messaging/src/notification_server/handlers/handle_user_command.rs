@@ -22,7 +22,10 @@ pub async fn handle_user_command(
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,
 ) -> Result<(), ErrorCommand> {
-    let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
+    let command = str::from_utf8(&command).or(Err(ErrorCommand::Disconnect(
+        "Command contained invalid UTF-8".to_string(),
+    )))?;
+
     let args: Vec<&str> = command.trim().split(' ').collect();
     trace!("C: {command}");
 
@@ -33,7 +36,9 @@ pub async fn handle_user_command(
 
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
         }
@@ -120,7 +125,9 @@ pub async fn handle_user_command(
             let reply = "QNG 50\r\n";
             wr.write_all(reply.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             trace!("S: {reply}");
         }

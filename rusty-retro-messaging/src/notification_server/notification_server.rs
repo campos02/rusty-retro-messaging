@@ -38,11 +38,11 @@ impl NotificationServer {
         if self.authenticated_user.is_some() {
             tokio::select! {
                 messages = receive_split(&mut rd) => {
-                    self.handle_client_commands(&mut wr, messages?).await?
+                    self.handle_client_commands(&mut wr, messages?).await?;
                 }
 
-                received = self.contact_rx.as_mut().expect("Could not receive from threads").recv() => {
-                    self.handle_thread_commands(&mut wr, received.expect("Could not receive from threads")).await?
+                received = self.contact_rx.as_mut().ok_or(ErrorCommand::Disconnect("Could not receive from threads".to_string()))?.recv() => {
+                    self.handle_thread_commands(&mut wr, received.or(Err(ErrorCommand::Disconnect("Could not receive from threads".to_string())))?).await?;
                 }
             }
         } else {
@@ -66,8 +66,9 @@ impl NotificationServer {
 
             if self.authenticated_user.is_none() {
                 let (authenticated_user, contact_rx) = handle_authentication_command(
-                    self.protocol_version
-                        .expect("Could not get protocol version"),
+                    self.protocol_version.ok_or(ErrorCommand::Disconnect(
+                        "Could not get protocol version".to_string(),
+                    ))?,
                     &self.pool,
                     &self.broadcast_tx,
                     wr,
@@ -81,11 +82,14 @@ impl NotificationServer {
             }
 
             handle_user_command(
-                self.protocol_version
-                    .expect("Could not get protocol version"),
+                self.protocol_version.ok_or(ErrorCommand::Disconnect(
+                    "Could not get protocol version".to_string(),
+                ))?,
                 self.authenticated_user
                     .as_mut()
-                    .expect("Could not get authenticated user"),
+                    .ok_or(ErrorCommand::Disconnect(
+                        "Could not get authenticated user".to_string(),
+                    ))?,
                 &self.pool,
                 &self.broadcast_tx,
                 wr,
@@ -112,11 +116,14 @@ impl NotificationServer {
         };
 
         handle_thread_command(
-            self.protocol_version
-                .expect("Could not get protocol version"),
+            self.protocol_version.ok_or(ErrorCommand::Disconnect(
+                "Could not get protocol version".to_string(),
+            ))?,
             self.authenticated_user
                 .as_mut()
-                .expect("Could not get authenticated user"),
+                .ok_or(ErrorCommand::Disconnect(
+                    "Could not get authenticated user".to_string(),
+                ))?,
             sender,
             &self.broadcast_tx,
             wr,
@@ -127,18 +134,22 @@ impl NotificationServer {
         Ok(())
     }
 
-    pub async fn send_fln_to_contacts(&mut self) {
+    pub async fn send_fln_to_contacts(&mut self) -> Result<(), ErrorCommand> {
         for email in self
             .authenticated_user
             .as_ref()
-            .expect("Could not get authenticated user")
+            .ok_or(ErrorCommand::Disconnect(
+                "Could not get authenticated user".to_string(),
+            ))?
             .contacts
             .keys()
         {
             let fln_command = fln::convert(
                 self.authenticated_user
                     .as_ref()
-                    .expect("Could not get authenticated user"),
+                    .ok_or(ErrorCommand::Disconnect(
+                        "Could not get authenticated user".to_string(),
+                    ))?,
                 "",
             );
 
@@ -146,7 +157,9 @@ impl NotificationServer {
                 sender: self
                     .authenticated_user
                     .as_ref()
-                    .expect("Could not get authenticated user")
+                    .ok_or(ErrorCommand::Disconnect(
+                        "Could not get authenticated user".to_string(),
+                    ))?
                     .email
                     .clone(),
                 receiver: email.clone(),
@@ -155,8 +168,12 @@ impl NotificationServer {
 
             self.broadcast_tx
                 .send(message)
-                .expect("Could not send to broadcast");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to broadcast".to_string(),
+                )))?;
         }
+
+        Ok(())
     }
 
     pub fn verify_contact(

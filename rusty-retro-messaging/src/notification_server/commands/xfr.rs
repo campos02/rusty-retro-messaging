@@ -50,9 +50,10 @@ impl UserCommand for Xfr {
             return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));
         }
 
-        let switchboard_ip = env::var("SWITCHBOARD_IP").expect("SWITCHBOARD_IP not set");
-        let cki_string = Arc::new(Alphanumeric.sample_string(&mut rand::rng(), 16));
+        let switchboard_ip = env::var("SWITCHBOARD_IP")
+            .or(Err(ErrorCommand::Command(format!("500 {tr_id}\r\n"))))?;
 
+        let cki_string = Arc::new(Alphanumeric.sample_string(&mut rand::rng(), 16));
         let (tx, _) = broadcast::channel::<Message>(16);
         let session_id = Arc::new(format!("{:08}", OsRng.next_u32()));
 
@@ -68,7 +69,9 @@ impl UserCommand for Xfr {
                 key: cki_string.clone(),
                 value: session,
             })
-            .expect("Could not send to broadcast");
+            .or(Err(ErrorCommand::Disconnect(
+                "Could not send to broadcast".to_string(),
+            )))?;
 
         Ok(vec![format!(
             "XFR {tr_id} SB {switchboard_ip}:1864 CKI {cki_string}\r\n"

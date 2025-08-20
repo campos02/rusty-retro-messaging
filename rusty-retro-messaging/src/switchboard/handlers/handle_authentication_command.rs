@@ -24,7 +24,9 @@ pub async fn handle_authentication_command(
     let command_string = command_string
         .lines()
         .next()
-        .expect("Could not get command from client message")
+        .ok_or(ErrorCommand::Command(
+            "Could not get command from client message".to_string(),
+        ))?
         .to_string()
         + "\r\n";
 

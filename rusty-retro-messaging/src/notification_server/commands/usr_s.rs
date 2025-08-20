@@ -89,7 +89,9 @@ impl AuthenticationCommand for UsrS {
 
             broadcast_tx
                 .send(Message::AddUser)
-                .expect("Could not send to broadcast");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to broadcast".to_string(),
+                )))?;
 
             let authenticated_user = AuthenticatedUser::new(database_user.email.clone());
             let thread_message = Message::ToContact {
@@ -100,7 +102,9 @@ impl AuthenticationCommand for UsrS {
 
             broadcast_tx
                 .send(thread_message)
-                .expect("Could not send to broadcast");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to broadcast".to_string(),
+                )))?;
 
             let (tx, _) = broadcast::channel::<Message>(16);
             broadcast_tx
@@ -108,7 +112,9 @@ impl AuthenticationCommand for UsrS {
                     key: database_user.email.clone(),
                     value: tx.clone(),
                 })
-                .expect("Could not send to broadcast");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to broadcast".to_string(),
+                )))?;
 
             let contact_rx = tx.subscribe();
             let replies = vec![

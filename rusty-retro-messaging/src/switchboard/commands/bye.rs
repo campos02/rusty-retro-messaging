@@ -1,10 +1,6 @@
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
-pub(crate) fn generate(
-    protocol_version: usize,
-    user: &mut AuthenticatedUser,
-    tr_id: &str,
-) -> String {
+pub fn generate(protocol_version: usize, user: &mut AuthenticatedUser, tr_id: &str) -> String {
     let _ = protocol_version;
     let _ = tr_id;
 

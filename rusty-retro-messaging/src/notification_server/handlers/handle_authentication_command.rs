@@ -5,7 +5,7 @@ use crate::{
     models::transient::authenticated_user::AuthenticatedUser,
     notification_server::commands::{cvr::Cvr, usr_i::UsrI, usr_s::UsrS},
 };
-use log::{trace, warn};
+use log::{error, trace, warn};
 use sqlx::{MySql, Pool};
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
@@ -22,23 +22,30 @@ pub async fn handle_authentication_command(
     ),
     ErrorCommand,
 > {
-    let command = str::from_utf8(&command).expect("Command contained invalid UTF-8");
+    let command = str::from_utf8(&command).or(Err(ErrorCommand::Disconnect(
+        "Command contained invalid UTF-8".to_string(),
+    )))?;
+
     let args: Vec<&str> = command.trim().split(' ').collect();
+    trace!("C: {command}");
 
     match *args.first().unwrap_or(&"") {
         "CVR" => {
-            trace!("C: {command}");
             process_command(protocol_version, wr, &Cvr, command).await?;
         }
 
         "USR" => match *args.get(3).unwrap_or(&"") {
             "I" => {
-                trace!("C: {command}");
                 let usr = UsrI::new(pool.clone());
                 process_command(protocol_version, wr, &usr, command).await?;
             }
 
             "S" => {
+                if args.len() < 4 {
+                    error!("Command doesn't have enough arguments: {command}");
+                    return Err(ErrorCommand::Command("Not enough arguments".to_string()));
+                }
+
                 trace!(
                     "C: {} {} {} {} t=xxxxx\r\n",
                     args[0], args[1], args[2], args[3]
@@ -58,13 +65,14 @@ pub async fn handle_authentication_command(
             }
 
             _ => {
-                trace!("C: {command}");
                 let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
                 let err = format!("911 {tr_id}\r\n");
 
                 wr.write_all(err.as_bytes())
                     .await
-                    .expect("Could not send to client over socket");
+                    .or(Err(ErrorCommand::Disconnect(
+                        "Could not send to client over socket".to_string(),
+                    )))?;
 
                 warn!("S: {err}");
                 return Err(ErrorCommand::Disconnect(err));

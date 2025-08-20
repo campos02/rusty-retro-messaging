@@ -32,10 +32,11 @@ impl AuthenticationCommand for Ans {
 
         broadcast_tx
             .send(Message::GetSession(Arc::new(cki_string.to_string())))
-            .expect("Could not send to broadcast");
+            .or(Err(ErrorCommand::Disconnect(
+                "Could not send to broadcast".to_string(),
+            )))?;
 
         let mut session;
-
         {
             let mut broadcast_rx = broadcast_tx.subscribe();
             loop {
@@ -73,9 +74,9 @@ impl AuthenticationCommand for Ans {
             message: "GetUserDetails".to_string(),
         };
 
-        broadcast_tx
-            .send(message)
-            .expect("Could not send to broadcast");
+        broadcast_tx.send(message).or(Err(ErrorCommand::Disconnect(
+            "Could not send to broadcast".to_string(),
+        )))?;
 
         let mut authenticated_user_result;
         let mut protocol_version_result;
@@ -114,17 +115,20 @@ impl AuthenticationCommand for Ans {
             }
         }
 
-        let mut authenticated_user: AuthenticatedUser =
-            authenticated_user_result.expect("Could not get authenticated user");
-        let protocol_version = protocol_version_result.expect("Could not get protocol version");
+        let mut authenticated_user = authenticated_user_result.ok_or(ErrorCommand::Command(
+            "Could not get authenticated user".to_string(),
+        ))?;
 
-        let mut replies: Vec<String> = Vec::new();
+        let protocol_version = protocol_version_result.ok_or(ErrorCommand::Disconnect(
+            "Could not get protocol version".to_string(),
+        ))?;
+        let mut replies = Vec::new();
 
         {
             let mut principals = session
                 .principals
                 .lock()
-                .expect("Could not get principals, mutex poisoned");
+                .or(Err(ErrorCommand::Disconnect(format!("500 {tr_id}\r\n"))))?;
 
             let count = principals.len();
             let mut index = 1;
@@ -133,16 +137,13 @@ impl AuthenticationCommand for Ans {
                 let email = &principal.email;
                 let display_name = &principal.display_name;
 
-                let mut iro_reply =
-                    format!("IRO {tr_id} {index} {count} {email} {display_name}\r\n");
-
-                if protocol_version >= 12 {
-                    if let Some(client_id) = principal.client_id {
-                        iro_reply = format!(
-                            "IRO {tr_id} {index} {count} {email} {display_name} {client_id}\r\n"
-                        );
-                    }
-                }
+                let iro_reply = if protocol_version >= 12
+                    && let Some(client_id) = principal.client_id
+                {
+                    format!("IRO {tr_id} {index} {count} {email} {display_name} {client_id}\r\n")
+                } else {
+                    format!("IRO {tr_id} {index} {count} {email} {display_name}\r\n")
+                };
 
                 replies.push(iro_reply);
                 index += 1;
@@ -167,7 +168,7 @@ impl AuthenticationCommand for Ans {
         session
             .session_tx
             .send(message)
-            .expect("Could not send to session");
+            .or(Err(ErrorCommand::Disconnect(format!("500 {tr_id}\r\n"))))?;
 
         replies.push(format!("ANS {tr_id} OK\r\n"));
         Ok((replies, protocol_version, session, authenticated_user))

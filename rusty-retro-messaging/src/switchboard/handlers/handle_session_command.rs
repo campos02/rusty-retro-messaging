@@ -28,7 +28,9 @@ pub async fn handle_session_command(
     let command_string = command_string
         .lines()
         .next()
-        .expect("Could not get command from client message")
+        .ok_or(ErrorCommand::Command(
+            "Could not get command from client message".to_string(),
+        ))?
         .to_string()
         + "\r\n";
 
@@ -42,7 +44,9 @@ pub async fn handle_session_command(
 
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
         }
@@ -53,7 +57,9 @@ pub async fn handle_session_command(
 
             wr.write_all(err.as_bytes())
                 .await
-                .expect("Could not send to client over socket");
+                .or(Err(ErrorCommand::Disconnect(
+                    "Could not send to client over socket".to_string(),
+                )))?;
 
             warn!("S: {err}");
         }
