@@ -33,10 +33,6 @@ impl UserCommand for Reg {
             .get(3)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
-        let number = *args
-            .get(4)
-            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
-
         let database_user = sqlx::query_as!(
             User,
             "SELECT id, email, password, display_name, puid, guid, gtc, blp 
@@ -69,8 +65,6 @@ impl UserCommand for Reg {
         .await
         .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
-        Ok(vec![format!(
-            "REG {tr_id} 1 {group_guid} {new_name} {number}\r\n"
-        )])
+        Ok(vec![format!("REG {tr_id} 1 {group_guid} {new_name} 0\r\n")])
     }
 }
