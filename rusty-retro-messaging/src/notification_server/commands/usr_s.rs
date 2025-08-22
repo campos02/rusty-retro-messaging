@@ -1,5 +1,5 @@
 use super::traits::authentication_command::AuthenticationCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::message::Message;
 use crate::models::token::Token;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -58,14 +58,14 @@ impl AuthenticationCommand for UsrS {
         protocol_version: usize,
         broadcast_tx: &broadcast::Sender<Message>,
         command: &str,
-    ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), ErrorCommand> {
+    ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let email = *args
             .get(4)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let token = sqlx::query_as!(
             Token,
@@ -74,7 +74,7 @@ impl AuthenticationCommand for UsrS {
         )
         .fetch_one(&self.pool)
         .await
-        .or(Err(ErrorCommand::Command(format!("911 {tr_id}\r\n"))))?;
+        .or(Err(CommandError::Reply(format!("911 {tr_id}\r\n"))))?;
 
         if Utc::now().naive_utc() <= token.valid_until {
             let database_user = sqlx::query_as!(
@@ -85,13 +85,11 @@ impl AuthenticationCommand for UsrS {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("911 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("911 {tr_id}\r\n"))))?;
 
             broadcast_tx
                 .send(Message::AddUser)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+                .map_err(CommandError::CouldNotSendToBroadcast)?;
 
             let authenticated_user = AuthenticatedUser::new(database_user.email.clone());
             let thread_message = Message::ToContact {
@@ -102,9 +100,7 @@ impl AuthenticationCommand for UsrS {
 
             broadcast_tx
                 .send(thread_message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+                .map_err(CommandError::CouldNotSendToBroadcast)?;
 
             let (tx, _) = broadcast::channel::<Message>(16);
             broadcast_tx
@@ -112,9 +108,7 @@ impl AuthenticationCommand for UsrS {
                     key: database_user.email.clone(),
                     value: tx.clone(),
                 })
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+                .map_err(CommandError::CouldNotSendToBroadcast)?;
 
             let contact_rx = tx.subscribe();
             let replies = vec![
@@ -126,6 +120,6 @@ impl AuthenticationCommand for UsrS {
             return Ok((replies, authenticated_user, contact_rx));
         }
 
-        Err(ErrorCommand::Disconnect(format!("911 {tr_id}\r\n")))
+        Err(CommandError::ReplyAndDisconnect(format!("911 {tr_id}\r\n")))
     }
 }

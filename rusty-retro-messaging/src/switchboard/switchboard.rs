@@ -1,13 +1,16 @@
+use crate::errors::command_error::CommandError;
+use crate::errors::server_error::ServerError;
 use crate::receive_split::receive_split;
 use crate::switchboard::commands::bye;
 use crate::switchboard::handlers::handle_authentication_command::handle_authentication_command;
 use crate::switchboard::handlers::handle_session_command::handle_session_command;
 use crate::{
-    Message, error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
+    Message, models::transient::authenticated_user::AuthenticatedUser,
     switchboard::session::Session,
 };
 use core::str;
 use log::{error, trace};
+use std::error;
 use tokio::{
     io::AsyncWriteExt,
     net::{TcpStream, tcp::WriteHalf},
@@ -15,8 +18,8 @@ use tokio::{
 };
 
 pub struct Switchboard {
-    pub broadcast_tx: broadcast::Sender<Message>,
-    pub session: Option<Session>,
+    broadcast_tx: broadcast::Sender<Message>,
+    session: Option<Session>,
     session_rx: Option<broadcast::Receiver<Message>>,
     authenticated_user: Option<AuthenticatedUser>,
     protocol_version: Option<usize>,
@@ -33,20 +36,30 @@ impl Switchboard {
         }
     }
 
-    pub async fn listen(&mut self, socket: &mut TcpStream) -> Result<(), ErrorCommand> {
+    pub async fn listen(
+        &mut self,
+        socket: &mut TcpStream,
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         let (mut rd, mut wr) = socket.split();
         if self.session.is_some() {
-            let session_rx = self.session_rx.as_mut().ok_or(ErrorCommand::Disconnect(
-                "Could not get session receiver".to_string(),
-            ))?;
+            let session_rx = self
+                .session_rx
+                .as_mut()
+                .ok_or(ServerError::CouldNotGetSessionReceiver)?;
 
             tokio::select! {
                 messages = receive_split(&mut rd) => {
-                    self.handle_client_commands(&mut wr, messages?).await?
+                    if let Err(error) = self.handle_client_commands(&mut wr, messages?).await {
+                        error!("{error}");
+                        if let Some(session) = self.session.as_ref() {
+                            self.broadcast_tx.send(Message::RemoveSession(session.session_id.clone()))?;
+                            self.send_bye_to_principals(false).await?;
+                        }
+                    }
                 }
 
                 received = session_rx.recv() => {
-                    self.handle_session_message(&mut wr, received.or(Err(ErrorCommand::Disconnect("Could not receive from threads".to_string())))?).await?
+                    self.handle_session_message(&mut wr, received.map_err(CommandError::CouldNotReceiveFromBroadcast)?).await?
                 }
             }
         } else {
@@ -61,15 +74,18 @@ impl Switchboard {
         &mut self,
         wr: &mut WriteHalf<'_>,
         messages: Vec<Vec<u8>>,
-    ) -> Result<(), ErrorCommand> {
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         for message in messages {
             if self.session.is_none() {
-                let (protocol_version, session, authenticated_user) =
-                    handle_authentication_command(&self.broadcast_tx, wr, message).await?;
+                let Some((protocol_version, session, authenticated_user)) =
+                    handle_authentication_command(&self.broadcast_tx, wr, message).await?
+                else {
+                    continue;
+                };
 
-                self.protocol_version = protocol_version;
-                self.authenticated_user = authenticated_user;
-                self.session = session;
+                self.protocol_version = Some(protocol_version);
+                self.authenticated_user = Some(authenticated_user);
+                self.session = Some(session);
 
                 if let Some(session) = &self.session {
                     self.session_rx = Some(session.session_tx.subscribe());
@@ -79,17 +95,14 @@ impl Switchboard {
             }
 
             handle_session_command(
-                self.protocol_version.ok_or(ErrorCommand::Disconnect(
-                    "Could not get protocol version".to_string(),
-                ))?,
+                self.protocol_version
+                    .ok_or(ServerError::CouldNotGetProtocolVersion)?,
                 self.authenticated_user
                     .as_mut()
-                    .ok_or(ErrorCommand::Disconnect(
-                        "Could not get authenticated user".to_string(),
-                    ))?,
-                self.session.as_mut().ok_or(ErrorCommand::Disconnect(
-                    "Could not get session".to_string(),
-                ))?,
+                    .ok_or(ServerError::CouldNotGetAuthenticatedUser)?,
+                self.session
+                    .as_mut()
+                    .ok_or(ServerError::CouldNotGetSession)?,
                 &self.broadcast_tx,
                 wr,
                 message,
@@ -104,7 +117,7 @@ impl Switchboard {
         &mut self,
         wr: &mut WriteHalf<'_>,
         message: Message,
-    ) -> Result<(), ErrorCommand> {
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         let Message::ToPrincipals { sender, message } = message else {
             return Ok(());
         };
@@ -113,15 +126,13 @@ impl Switchboard {
         let command = messages_string
             .lines()
             .next()
-            .ok_or(ErrorCommand::Command(
-                "Could not get command from session message".to_string(),
-            ))?
+            .ok_or(CommandError::CouldNotGetCommand)?
             .to_string()
             + "\r\n";
 
         let args: Vec<&str> = command.trim().split(' ').collect();
         let Some(principal) = args.get(1) else {
-            error!("Command doesn't have enough arguments: {command}");
+            error!("Could not get principal from command: {command}");
             return Ok(());
         };
 
@@ -129,9 +140,7 @@ impl Switchboard {
             == *self
                 .authenticated_user
                 .as_ref()
-                .ok_or(ErrorCommand::Disconnect(
-                    "Could not get authenticated user".to_string(),
-                ))?
+                .ok_or(CommandError::CouldNotGetAuthenticatedUser)?
                 .email
         {
             return Ok(());
@@ -140,32 +149,17 @@ impl Switchboard {
         trace!("Thread {sender}: {command}");
         match *args.first().unwrap_or(&"") {
             "MSG" => {
-                wr.write_all(&message)
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+                wr.write_all(&message).await?;
                 trace!("S: {command}");
             }
 
             "JOI" => {
-                wr.write_all(&message)
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+                wr.write_all(&message).await?;
                 trace!("S: {command}");
             }
 
             "BYE" => {
-                wr.write_all(&message)
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+                wr.write_all(&message).await?;
                 trace!("S: {command}");
             }
             _ => (),
@@ -174,33 +168,29 @@ impl Switchboard {
         Ok(())
     }
 
-    pub async fn send_bye_to_principals(&mut self, idling: bool) -> Result<(), ErrorCommand> {
-        let authenticated_user =
-            self.authenticated_user
-                .as_mut()
-                .ok_or(ErrorCommand::Disconnect(
-                    "Could not get authenticated user".to_string(),
-                ))?;
+    pub async fn send_bye_to_principals(
+        &mut self,
+        idling: bool,
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
+        let authenticated_user = self
+            .authenticated_user
+            .as_mut()
+            .ok_or(ServerError::CouldNotGetAuthenticatedUser)?;
         {
             let mut principals = self
                 .session
                 .as_ref()
-                .ok_or(ErrorCommand::Disconnect(
-                    "Could not get session".to_string(),
-                ))?
+                .ok_or(ServerError::CouldNotGetSession)?
                 .principals
                 .lock()
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not get principals, mutex poisoned".to_string(),
-                )))?;
+                .or(Err(ServerError::PrincipalsLockError))?;
 
             principals.remove(&authenticated_user.email);
         }
 
         let mut bye_command = bye::generate(
-            self.protocol_version.ok_or(ErrorCommand::Disconnect(
-                "Could not get protocol version".to_string(),
-            ))?,
+            self.protocol_version
+                .ok_or(ServerError::CouldNotGetProtocolVersion)?,
             authenticated_user,
             "",
         );
@@ -215,12 +205,7 @@ impl Switchboard {
         };
 
         if let Some(ref session) = self.session {
-            session
-                .session_tx
-                .send(message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to session".to_string(),
-                )))?;
+            session.session_tx.send(message)?;
         }
 
         Ok(())

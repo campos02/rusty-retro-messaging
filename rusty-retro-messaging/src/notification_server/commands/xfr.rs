@@ -1,7 +1,8 @@
 use super::traits::user_command::UserCommand;
+use crate::errors::command_error::CommandError;
 use crate::{
-    error_command::ErrorCommand, message::Message,
-    models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
+    message::Message, models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
 };
 use argon2::password_hash::rand_core::{OsRng, RngCore};
 use rand::distr::SampleString;
@@ -29,29 +30,29 @@ impl UserCommand for Xfr {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let server_type = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         if server_type != "SB" {
-            return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));
+            return Err(CommandError::Reply(format!("913 {tr_id}\r\n")));
         }
 
         if let Some(presence) = &user.presence {
             if **presence == "HDN" {
-                return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("913 {tr_id}\r\n")));
             }
         } else {
-            return Err(ErrorCommand::Command(format!("913 {tr_id}\r\n")));
+            return Err(CommandError::Reply(format!("913 {tr_id}\r\n")));
         }
 
-        let switchboard_ip = env::var("SWITCHBOARD_IP")
-            .or(Err(ErrorCommand::Command(format!("500 {tr_id}\r\n"))))?;
+        let switchboard_ip =
+            env::var("SWITCHBOARD_IP").or(Err(CommandError::Reply(format!("500 {tr_id}\r\n"))))?;
 
         let cki_string = Arc::new(Alphanumeric.sample_string(&mut rand::rng(), 16));
         let (tx, _) = broadcast::channel::<Message>(16);
@@ -69,9 +70,7 @@ impl UserCommand for Xfr {
                 key: cki_string.clone(),
                 value: session,
             })
-            .or(Err(ErrorCommand::Disconnect(
-                "Could not send to broadcast".to_string(),
-            )))?;
+            .map_err(CommandError::CouldNotSendToBroadcast)?;
 
         Ok(vec![format!(
             "XFR {tr_id} SB {switchboard_ip}:1864 CKI {cki_string}\r\n"

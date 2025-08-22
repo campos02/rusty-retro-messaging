@@ -1,5 +1,5 @@
 use super::traits::user_command::UserCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::message::Message;
 use crate::models::contact::Contact;
 use crate::models::group::Group;
@@ -28,18 +28,18 @@ impl UserCommand for Adc {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let list = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let contact_email = *args
             .get(3)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -49,13 +49,13 @@ impl UserCommand for Adc {
             "FL" => forward_list = true,
             "AL" => allow_list = true,
             "BL" => block_list = true,
-            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
+            _ => return Err(CommandError::Reply(format!("201 {tr_id}\r\n"))),
         }
 
         if contact_email.starts_with("N=") {
             let contact_email = Arc::new(contact_email.replace("N=", ""));
             if *contact_email == *user.email {
-                return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("201 {tr_id}\r\n")));
             }
 
             let database_user = sqlx::query_as!(
@@ -66,7 +66,7 @@ impl UserCommand for Adc {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
             let contact_user = sqlx::query_as!(
                 User,
@@ -76,7 +76,7 @@ impl UserCommand for Adc {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("208 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
             if let Ok(contact) = sqlx::query_as!(
                 Contact,
@@ -95,7 +95,7 @@ impl UserCommand for Adc {
             {
                 if forward_list {
                     if contact.in_forward_list {
-                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
                     }
 
                     if sqlx::query!(
@@ -106,7 +106,7 @@ impl UserCommand for Adc {
                     .await
                     .is_err()
                     {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -114,7 +114,7 @@ impl UserCommand for Adc {
                     };
                 } else if allow_list {
                     if contact.in_allow_list {
-                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
                     }
 
                     if sqlx::query!(
@@ -125,7 +125,7 @@ impl UserCommand for Adc {
                     .await
                     .is_err()
                     {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -133,7 +133,7 @@ impl UserCommand for Adc {
                     };
                 } else if block_list {
                     if contact.in_block_list {
-                        return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
                     }
 
                     if sqlx::query!(
@@ -144,7 +144,7 @@ impl UserCommand for Adc {
                     .await
                     .is_err()
                     {
-                        return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                        return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
                     if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -172,7 +172,7 @@ impl UserCommand for Adc {
                 .await
                 .is_err()
                 {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                 }
 
                 user.contacts.insert(
@@ -193,7 +193,7 @@ impl UserCommand for Adc {
                 let contact_guid = contact_user.guid;
                 let contact_display_name = *args
                     .get(4)
-                    .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+                    .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
                 let message = Message::ToContact {
                     sender: user.email.clone(),
@@ -203,16 +203,14 @@ impl UserCommand for Adc {
 
                 self.broadcast_tx
                     .send(message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
 
                 Ok(vec![format!(
                     "ADC {tr_id} {list} N={contact_email} {contact_display_name} C={contact_guid}\r\n"
                 )])
             } else {
                 if block_list {
-                    let fln_command = fln::convert(user, command);
+                    let fln_command = fln::convert(user);
                     let message = Message::ToContact {
                         sender: user.email.clone(),
                         receiver: contact_email.clone(),
@@ -221,9 +219,7 @@ impl UserCommand for Adc {
 
                     self.broadcast_tx
                         .send(message)
-                        .or(Err(ErrorCommand::Disconnect(
-                            "Could not send to broadcast".to_string(),
-                        )))?;
+                        .map_err(CommandError::CouldNotSendToBroadcast)?;
                 }
 
                 Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")])
@@ -233,7 +229,7 @@ impl UserCommand for Adc {
             let contact_guid = contact_email.replace("C=", "");
             let contact_display_name = args
                 .get(4)
-                .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?
+                .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?
                 .replace("F=", "");
 
             let group_guid = contact_display_name.replace("C=", "");
@@ -246,7 +242,7 @@ impl UserCommand for Adc {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
             let group = sqlx::query_as!(
                 Group,
@@ -256,7 +252,7 @@ impl UserCommand for Adc {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("224 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("224 {tr_id}\r\n"))))?;
 
             let contact = sqlx::query_as!(
                 Contact,
@@ -272,7 +268,7 @@ impl UserCommand for Adc {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("208 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
             if sqlx::query!(
                 "SELECT id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
@@ -283,7 +279,7 @@ impl UserCommand for Adc {
             .await
             .is_ok()
             {
-                return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
             }
 
             sqlx::query!(
@@ -293,14 +289,14 @@ impl UserCommand for Adc {
             )
             .execute(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
             return Ok(vec![format!(
                 "ADC {tr_id} {list} C={contact_guid} {group_guid}\r\n"
             )]);
         }
 
-        Err(ErrorCommand::Command(format!("208 {tr_id}\r\n")))
+        Err(CommandError::Reply(format!("208 {tr_id}\r\n")))
     }
 }
 

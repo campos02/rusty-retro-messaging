@@ -1,9 +1,9 @@
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 
 pub trait Command {
     async fn handle(
         &self,
         protocol_version: usize,
         command: &str,
-    ) -> Result<Vec<String>, ErrorCommand>;
+    ) -> Result<Vec<String>, CommandError>;
 }

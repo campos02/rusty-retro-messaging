@@ -30,7 +30,6 @@ services:
       MARIADB_PASSWORD: ${DB_PASSWORD}
     volumes:
       - r2m-db-data:/var/lib/mysql
-      - ./mariadb:/etc/mysql/conf.d/
     networks:
       - r2m
 

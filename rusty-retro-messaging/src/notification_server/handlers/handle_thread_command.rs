@@ -1,10 +1,8 @@
+use crate::errors::thread_command_error::ThreadCommandError;
 use crate::notification_server::commands::{iln, nln, ubx};
-use crate::{
-    error_command::ErrorCommand, message::Message,
-    models::transient::authenticated_user::AuthenticatedUser,
-    notification_server::notification_server::NotificationServer,
-};
-use log::{error, trace, warn};
+use crate::notification_server::verify_contact;
+use crate::{message::Message, models::transient::authenticated_user::AuthenticatedUser};
+use log::{trace, warn};
 use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
@@ -15,15 +13,13 @@ pub async fn handle_thread_command(
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: String,
-) -> Result<(), ErrorCommand> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let args: Vec<&str> = command.trim().split(' ').collect();
     match *args.first().unwrap_or(&"") {
         "ILN" => {
             trace!("Thread {sender}: {command}");
-
             if args.len() < 4 {
-                error!("Command doesn't have enough arguments: {command}");
-                return Ok(());
+                return Err(ThreadCommandError::NotEnoughArguments(command).into());
             }
 
             let presence = args[2];
@@ -33,21 +29,14 @@ pub async fn handle_thread_command(
                 contact.presence = Some(Arc::new(presence.to_string()));
             }
 
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(command.as_bytes()).await?;
             trace!("S: {command}");
         }
 
         "NLN" => {
             trace!("Thread {sender}: {command}");
-
             if args.len() < 3 {
-                error!("Command doesn't have enough arguments: {command}");
-                return Ok(());
+                return Err(ThreadCommandError::NotEnoughArguments(command).into());
             }
 
             let presence = args[1];
@@ -57,21 +46,14 @@ pub async fn handle_thread_command(
                 contact.presence = Some(Arc::new(presence.to_string()));
             }
 
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(command.as_bytes()).await?;
             trace!("S: {command}");
         }
 
         "FLN" => {
             trace!("Thread {sender}: {command}");
-
             if args.len() < 2 {
-                error!("Command doesn't have enough arguments: {command}");
-                return Ok(());
+                return Err(ThreadCommandError::NotEnoughArguments(command).into());
             }
 
             let contact = args[1].trim().to_string();
@@ -79,31 +61,21 @@ pub async fn handle_thread_command(
                 contact.presence = None;
             }
 
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(command.as_bytes()).await?;
             trace!("S: {command}");
         }
 
         "UBX" => {
             trace!("Thread {sender}: {command}");
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
+            wr.write_all(command.as_bytes()).await?;
 
             trace!("S: {command}");
         }
 
         "CHG" => {
-            trace!("Thread {sender}: {command}");
-
             // A user has logged in
-            if NotificationServer::verify_contact(authenticated_user, &sender).is_err() {
+            trace!("Thread {sender}: {command}");
+            if verify_contact::verify_contact(authenticated_user, &sender).is_err() {
                 return Ok(());
             }
 
@@ -117,89 +89,65 @@ pub async fn handle_thread_command(
                 message: iln_command,
             };
 
-            broadcast_tx
-                .send(thread_message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+            broadcast_tx.send(thread_message)?;
 
-            let ubx_command = ubx::convert(authenticated_user)?;
+            let Ok(ubx_command) = ubx::convert(authenticated_user) else {
+                return Ok(());
+            };
+
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
                 message: ubx_command,
             };
 
-            broadcast_tx
-                .send(thread_message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+            broadcast_tx.send(thread_message)?;
         }
 
         "ADC" => {
             trace!("Thread {sender}: {command}");
-            if NotificationServer::verify_contact(authenticated_user, &sender).is_err() {
-                wr.write_all(command.as_bytes())
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
+            if verify_contact::verify_contact(authenticated_user, &sender).is_err() {
+                wr.write_all(command.as_bytes()).await?;
 
                 warn!("S: {command}");
                 return Ok(());
             }
 
-            let nln_command = nln::convert(authenticated_user)?;
+            let Ok(nln_command) = nln::convert(authenticated_user) else {
+                return Ok(());
+            };
+
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender.clone(),
                 message: nln_command,
             };
 
-            broadcast_tx
-                .send(thread_message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
+            broadcast_tx.send(thread_message)?;
+            let Ok(ubx_command) = ubx::convert(authenticated_user) else {
+                return Ok(());
+            };
 
-            let ubx_command = ubx::convert(authenticated_user)?;
             let thread_message = Message::ToContact {
                 sender: authenticated_user.email.clone(),
                 receiver: sender,
                 message: ubx_command,
             };
 
-            broadcast_tx
-                .send(thread_message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
-
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            broadcast_tx.send(thread_message)?;
+            wr.write_all(command.as_bytes()).await?;
             trace!("S: {command}");
         }
 
         "REM" => {
             trace!("Thread {sender}: {command}");
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(command.as_bytes()).await?;
             trace!("S: {command}");
         }
 
         "RNG" => {
             if args.len() < 7 {
-                error!("Command doesn't have enough arguments: {command}");
-                return Ok(());
+                return Err(ThreadCommandError::NotEnoughArguments(command).into());
             }
 
             trace!(
@@ -207,13 +155,8 @@ pub async fn handle_thread_command(
                 args[0], args[1], args[2], args[3], args[5], args[6]
             );
 
-            if NotificationServer::verify_contact(authenticated_user, &sender).is_ok() {
-                wr.write_all(command.as_bytes())
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+            if verify_contact::verify_contact(authenticated_user, &sender).is_ok() {
+                wr.write_all(command.as_bytes()).await?;
                 trace!(
                     "S: {} {} {} {} xxxxx {} {}\r\n",
                     args[0], args[1], args[2], args[3], args[5], args[6]
@@ -223,21 +166,15 @@ pub async fn handle_thread_command(
 
         "OUT" => {
             trace!("Thread {sender}: {command}");
-            wr.write_all(command.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
+            wr.write_all(command.as_bytes()).await?;
 
             trace!("S: {command}");
-            return Err(ErrorCommand::Disconnect(
-                "User logged in in another computer".to_string(),
-            ));
+            return Err(ThreadCommandError::UserLoggedInOnAnotherComputer.into());
         }
 
         "GetUserDetails" => {
             trace!("Thread {sender}: {command}");
-            if NotificationServer::verify_contact(authenticated_user, &sender).is_ok() {
+            if verify_contact::verify_contact(authenticated_user, &sender).is_ok() {
                 let thread_message = Message::SendUserDetails {
                     sender: authenticated_user.email.clone(),
                     receiver: sender,
@@ -245,11 +182,7 @@ pub async fn handle_thread_command(
                     protocol_version: Some(protocol_version),
                 };
 
-                broadcast_tx
-                    .send(thread_message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                broadcast_tx.send(thread_message)?;
             } else {
                 let thread_message = Message::SendUserDetails {
                     sender: authenticated_user.email.clone(),
@@ -258,11 +191,7 @@ pub async fn handle_thread_command(
                     protocol_version: None,
                 };
 
-                broadcast_tx
-                    .send(thread_message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                broadcast_tx.send(thread_message)?;
             }
         }
 

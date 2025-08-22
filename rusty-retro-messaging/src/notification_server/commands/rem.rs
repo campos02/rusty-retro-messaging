@@ -1,5 +1,5 @@
 use super::traits::user_command::UserCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::message::Message;
 use crate::models::contact::Contact;
 use crate::models::group::Group;
@@ -28,19 +28,19 @@ impl UserCommand for Rem {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let list = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let contact_email = args
             .get(3)
             .map(|str| Arc::new(str.to_string()))
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let mut forward_list = false;
         let mut allow_list = false;
@@ -50,8 +50,8 @@ impl UserCommand for Rem {
             "FL" => forward_list = true,
             "AL" => allow_list = true,
             "BL" => block_list = true,
-            "RL" => return Err(ErrorCommand::Disconnect("Removing from RL".to_string())),
-            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
+            "RL" => return Err(CommandError::Reply(format!("201 {tr_id}\r\n"))),
+            _ => return Err(CommandError::Reply(format!("201 {tr_id}\r\n"))),
         }
 
         if forward_list {
@@ -67,7 +67,7 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
                 let group = sqlx::query_as!(
                     Group,
@@ -77,7 +77,7 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("224 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("224 {tr_id}\r\n"))))?;
 
                 let contact = sqlx::query_as!(
                     Contact,
@@ -93,7 +93,7 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("208 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
                 let group_member = sqlx::query_as!(
                     GroupMember,
@@ -103,12 +103,12 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("225 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("225 {tr_id}\r\n"))))?;
 
                 sqlx::query!("DELETE FROM group_members WHERE id = ?", group_member.id)
                     .execute(&self.pool)
                     .await
-                    .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+                    .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
                 Ok(vec![format!(
                     "REM {tr_id} {list} {contact_guid} {group_guid}\r\n"
@@ -122,7 +122,7 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
                 let contact = sqlx::query_as!(
                     Contact,
@@ -138,10 +138,10 @@ impl UserCommand for Rem {
                 )
                 .fetch_one(&self.pool)
                 .await
-                .or(Err(ErrorCommand::Command(format!("216 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("216 {tr_id}\r\n"))))?;
 
                 if !contact.in_forward_list {
-                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("216 {tr_id}\r\n")));
                 }
 
                 if sqlx::query!(
@@ -152,7 +152,7 @@ impl UserCommand for Rem {
                 .await
                 .is_err()
                 {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                 }
 
                 if let Some(contact) = user.contacts.get_mut(&contact.email) {
@@ -167,9 +167,7 @@ impl UserCommand for Rem {
 
                 self.broadcast_tx
                     .send(reply)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
 
                 Ok(vec![format!("REM {tr_id} {list} {contact_guid}\r\n")])
             }
@@ -181,7 +179,7 @@ impl UserCommand for Rem {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
             let contact = sqlx::query_as!(
                 Contact,
@@ -197,11 +195,11 @@ impl UserCommand for Rem {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("216 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("216 {tr_id}\r\n"))))?;
 
             if allow_list {
                 if !contact.in_allow_list {
-                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("216 {tr_id}\r\n")));
                 }
 
                 if sqlx::query!(
@@ -212,7 +210,7 @@ impl UserCommand for Rem {
                 .await
                 .is_err()
                 {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                 }
 
                 if let Some(contact) = user.contacts.get_mut(&contact_email) {
@@ -222,7 +220,7 @@ impl UserCommand for Rem {
 
             if block_list {
                 if !contact.in_block_list {
-                    return Err(ErrorCommand::Command(format!("216 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("216 {tr_id}\r\n")));
                 }
 
                 if sqlx::query!(
@@ -233,14 +231,14 @@ impl UserCommand for Rem {
                 .await
                 .is_err()
                 {
-                    return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                    return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                 }
 
                 if let Some(contact) = user.contacts.get_mut(&contact_email) {
                     contact.in_block_list = false;
                 };
 
-                let nln_command = nln::convert(user)?;
+                let nln_command = nln::convert(user).map_err(CommandError::CouldNotCreateNln)?;
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
@@ -249,9 +247,7 @@ impl UserCommand for Rem {
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
             }
 
             Ok(vec![format!("REM {tr_id} {list} {contact_email}\r\n")])

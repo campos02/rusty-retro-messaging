@@ -1,6 +1,6 @@
 use super::traits::authentication_command::AuthenticationCommand;
+use crate::errors::command_error::CommandError;
 use crate::{
-    error_command::ErrorCommand,
     message::Message,
     models::transient::{authenticated_user::AuthenticatedUser, principal::Principal},
     switchboard::session::Session,
@@ -16,25 +16,23 @@ impl AuthenticationCommand for Usr {
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
         command: &[u8],
-    ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), ErrorCommand> {
+    ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), CommandError> {
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let user_email = args
             .get(2)
             .map(|str| Arc::new(str.to_string()))
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let cki_string = *args
             .get(3)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         broadcast_tx
             .send(Message::GetSession(Arc::new(cki_string.to_string())))
-            .or(Err(ErrorCommand::Disconnect(
-                "Could not send to broadcast".to_string(),
-            )))?;
+            .map_err(CommandError::CouldNotSendToBroadcast)?;
 
         let mut session;
 
@@ -47,26 +45,26 @@ impl AuthenticationCommand for Usr {
                         if let RecvError::Lagged(_) = err {
                             continue;
                         } else {
-                            panic!("Could not receive from broadcast");
+                            return Err(CommandError::CouldNotReceiveFromBroadcast(err));
                         }
                     }
                 };
 
-                if let Message::Session { key, value } = message {
-                    if *key == cki_string {
-                        session = value;
+                if let Message::Session { key, value } = message
+                    && *key == cki_string
+                {
+                    session = value;
 
-                        if !broadcast_rx.is_empty() {
-                            continue;
-                        }
-                        break;
+                    if !broadcast_rx.is_empty() {
+                        continue;
                     }
+                    break;
                 }
             }
         }
 
         let Some(session) = session else {
-            return Err(ErrorCommand::Disconnect(format!("911 {tr_id}\r\n")));
+            return Err(CommandError::ReplyAndDisconnect(format!("911 {tr_id}\r\n")));
         };
 
         let message = Message::ToContact {
@@ -75,9 +73,9 @@ impl AuthenticationCommand for Usr {
             message: "GetUserDetails".to_string(),
         };
 
-        broadcast_tx.send(message).or(Err(ErrorCommand::Disconnect(
-            "Could not send to broadcast".to_string(),
-        )))?;
+        broadcast_tx
+            .send(message)
+            .map_err(CommandError::CouldNotSendToBroadcast)?;
 
         let mut authenticated_user_result;
         let mut protocol_version_result;
@@ -91,7 +89,7 @@ impl AuthenticationCommand for Usr {
                         if let RecvError::Lagged(_) = err {
                             continue;
                         } else {
-                            panic!("Could not receive from broadcast");
+                            return Err(CommandError::CouldNotReceiveFromBroadcast(err));
                         }
                     }
                 };
@@ -102,27 +100,25 @@ impl AuthenticationCommand for Usr {
                     authenticated_user,
                     protocol_version,
                 } = message
+                    && sender == user_email
                 {
-                    if sender == user_email {
-                        authenticated_user_result = authenticated_user;
-                        protocol_version_result = protocol_version;
+                    authenticated_user_result = authenticated_user;
+                    protocol_version_result = protocol_version;
 
-                        if !broadcast_rx.is_empty() {
-                            continue;
-                        }
-                        break;
+                    if !broadcast_rx.is_empty() {
+                        continue;
                     }
+                    break;
                 }
             }
         }
 
-        let authenticated_user: AuthenticatedUser = authenticated_user_result.ok_or(
-            ErrorCommand::Disconnect("Could not get authenticated user".to_string()),
-        )?;
+        let authenticated_user: AuthenticatedUser =
+            authenticated_user_result.ok_or(CommandError::CouldNotGetAuthenticatedUser)?;
 
-        let protocol_version = protocol_version_result.ok_or(ErrorCommand::Disconnect(
-            "Could not get protocol version".to_string(),
-        ))?;
+        let protocol_version =
+            protocol_version_result.ok_or(CommandError::CouldNotGetProtocolVersion)?;
+
         let user_email = &authenticated_user.email;
         let user_display_name = &authenticated_user.display_name;
 
@@ -130,7 +126,7 @@ impl AuthenticationCommand for Usr {
             let mut principals = session
                 .principals
                 .lock()
-                .or(Err(ErrorCommand::Command(format!("500 {tr_id}\r\n"))))?;
+                .or(Err(CommandError::Reply(format!("500 {tr_id}\r\n"))))?;
 
             principals.insert(
                 user_email.clone(),

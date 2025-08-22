@@ -1,6 +1,6 @@
+use crate::errors::command_error::CommandError;
 use crate::{
-    error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
-    switchboard::session::Session,
+    models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
 };
 
 pub trait Command {
@@ -10,5 +10,5 @@ pub trait Command {
         user: &mut AuthenticatedUser,
         session: &mut Session,
         command: &[u8],
-    ) -> Result<Vec<String>, ErrorCommand>;
+    ) -> Result<Vec<String>, CommandError>;
 }

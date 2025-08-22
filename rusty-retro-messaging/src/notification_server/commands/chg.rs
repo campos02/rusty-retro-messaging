@@ -1,9 +1,8 @@
 use super::fln;
+use crate::errors::command_error::CommandError;
+use crate::errors::command_generation_error::CommandGenerationError;
 use crate::notification_server::commands::traits::user_command::UserCommand;
-use crate::{
-    error_command::ErrorCommand, message::Message,
-    models::transient::authenticated_user::AuthenticatedUser,
-};
+use crate::{message::Message, models::transient::authenticated_user::AuthenticatedUser};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
@@ -27,14 +26,14 @@ impl UserCommand for Chg {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let status = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         // Validate presence
         match status {
@@ -46,14 +45,14 @@ impl UserCommand for Chg {
             "PHN" => (),
             "LUN" => (),
             "HDN" => (),
-            _ => return Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))),
+            _ => return Err(CommandError::Reply(format!("201 {tr_id}\r\n"))),
         }
 
         let client_id = args
             .get(3)
             .unwrap_or(&"")
             .parse()
-            .or(Err(ErrorCommand::Command(format!("201 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("201 {tr_id}\r\n"))))?;
 
         user.presence = Some(Arc::new(status.to_string()));
         user.client_id = Some(client_id);
@@ -77,20 +76,20 @@ impl UserCommand for Chg {
             }
 
             if status != "HDN" {
-                let nln_command = convert(user, command);
+                let nln_command =
+                    convert(user, command).map_err(CommandError::CouldNotCreateNln)?;
+
                 let thread_message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
-                    message: nln_command?,
+                    message: nln_command,
                 };
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
             } else {
-                let fln_command = fln::convert(user, "");
+                let fln_command = fln::convert(user);
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: email.clone(),
@@ -99,9 +98,7 @@ impl UserCommand for Chg {
 
                 self.broadcast_tx
                     .send(message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
 
                 continue;
             }
@@ -115,9 +112,7 @@ impl UserCommand for Chg {
 
                 self.broadcast_tx
                     .send(thread_message)
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to broadcast".to_string(),
-                    )))?;
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
             }
         }
 
@@ -125,18 +120,12 @@ impl UserCommand for Chg {
     }
 }
 
-pub fn convert(user: &AuthenticatedUser, command: &str) -> Result<String, ErrorCommand> {
+pub fn convert(user: &AuthenticatedUser, command: &str) -> Result<String, CommandGenerationError> {
     let mut args = command.trim().split(' ');
-    let presence = args.nth(2).ok_or(ErrorCommand::Command(
-        "CHG to be converted has no presence".to_string(),
-    ))?;
-
-    let client_id = args.next().ok_or(ErrorCommand::Command(
-        "CHG to be converted has no client id".to_string(),
-    ))?;
+    let presence = args.nth(2).ok_or(CommandGenerationError::NoPresence)?;
+    let client_id = args.next().ok_or(CommandGenerationError::NoClientId)?;
 
     let mut msn_object = String::from("");
-
     if let Some(object) = args.next() {
         let mut object = String::from(object);
         object.insert(0, ' ');

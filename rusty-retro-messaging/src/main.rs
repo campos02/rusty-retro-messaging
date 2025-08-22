@@ -1,6 +1,5 @@
 use dotenvy::dotenv;
 use env_logger::Env;
-use error_command::ErrorCommand;
 use log::{error, info};
 use message::Message;
 use notification_server::notification_server::NotificationServer;
@@ -10,7 +9,7 @@ use std::{collections::HashMap, env};
 use switchboard::{session::Session, switchboard::Switchboard};
 use tokio::{net::TcpListener, sync::broadcast};
 
-mod error_command;
+mod errors;
 mod http;
 mod message;
 pub mod models;
@@ -62,29 +61,10 @@ async fn main() {
                 let tx = tx.clone();
 
                 tokio::spawn(async move {
-                    let mut connection = NotificationServer::new(pool, tx);
+                    let mut connection = NotificationServer::new(pool, tx.clone());
                     loop {
-                        if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
+                        if let Err(error) = connection.listen(&mut socket).await {
                             error!("{error}");
-
-                            if connection.authenticated_user.is_some() {
-                                if let Err(error) = connection.broadcast_tx.send(Message::RemoveUser) {
-                                    error!("Could not remove user from count: {error}");
-                                }
-                            }
-
-                            if error != "User logged in in another computer" {
-                                if let Some(ref user) = connection.authenticated_user {
-                                    if let Err(error) = connection.broadcast_tx.send(Message::RemoveTx(user.email.clone())) {
-                                        error!("Could not remove user tx: {error}");
-                                    }
-
-                                    if let Err(ErrorCommand::Disconnect(error)) = connection.send_fln_to_contacts().await {
-                                        error!("Could not send FLN to contacts: {error}");
-                                    }
-                                }
-                            }
-
                             break;
                         }
                     }
@@ -101,22 +81,11 @@ async fn main() {
                 };
 
                 let tx = tx.clone();
-
                 tokio::spawn(async move {
-                    let mut connection = Switchboard::new(tx);
+                    let mut connection = Switchboard::new(tx.clone());
                     loop {
-                        if let Err(ErrorCommand::Disconnect(error)) = connection.listen(&mut socket).await {
+                        if let Err(error) = connection.listen(&mut socket).await {
                             error!("{error}");
-
-                            if let Some(ref session) = connection.session {
-                                if let Err(error) = connection.broadcast_tx.send(Message::RemoveSession(session.session_id.clone())) {
-                                    error!("Could not remove session: {error}");
-                                }
-
-                                if let Err(ErrorCommand::Disconnect(error)) = connection.send_bye_to_principals(false).await {
-                                    error!("Could not send BYE to principals: {error}");
-                                }
-                            }
                             break;
                         }
                     }
@@ -207,6 +176,7 @@ async fn main() {
                             error!("Could not send user details to {receiver}: {error}");
                         }
                     }
+
                     _ => ()
                 };
             }

@@ -1,14 +1,14 @@
-use crate::error_command::ErrorCommand;
+use crate::errors::receive_split_error::ReceiveSplitError;
 use core::str;
 use tokio::io::AsyncReadExt;
 use tokio::net::tcp::ReadHalf;
 
-pub async fn receive_split(rd: &mut ReadHalf<'_>) -> Result<Vec<Vec<u8>>, ErrorCommand> {
+pub async fn receive_split(rd: &mut ReadHalf<'_>) -> Result<Vec<Vec<u8>>, ReceiveSplitError> {
     let mut buf = vec![0; 1664];
     let received = rd.read(&mut buf).await.unwrap_or(0);
 
     if received == 0 {
-        return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
+        return Err(ReceiveSplitError::Disconnected);
     }
 
     let mut messages_bytes = buf.get(..received).unwrap_or_default().to_vec();
@@ -34,9 +34,7 @@ pub async fn receive_split(rd: &mut ReadHalf<'_>) -> Result<Vec<Vec<u8>>, ErrorC
                     .get(length_index)
                     .unwrap_or(&"")
                     .parse::<usize>()
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Client sent invalid length".to_string(),
-                    )))?;
+                    .or(Err(ReceiveSplitError::InvalidLength))?;
 
                 let length = command.len() + length;
                 if length > messages_bytes.len() {
@@ -44,7 +42,7 @@ pub async fn receive_split(rd: &mut ReadHalf<'_>) -> Result<Vec<Vec<u8>>, ErrorC
                     let received = rd.read(&mut buf).await.unwrap_or(0);
 
                     if received == 0 {
-                        return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
+                        return Err(ReceiveSplitError::Disconnected);
                     }
 
                     let buf = buf.get(..received).unwrap_or_default();
@@ -59,9 +57,7 @@ pub async fn receive_split(rd: &mut ReadHalf<'_>) -> Result<Vec<Vec<u8>>, ErrorC
             _ => {
                 let length = command.len();
                 if length > messages_bytes.len() {
-                    return Err(ErrorCommand::Disconnect(
-                        "Client sent invalid length".to_string(),
-                    ));
+                    return Err(ReceiveSplitError::InvalidLength);
                 }
 
                 let new_bytes = messages_bytes.drain(..length);

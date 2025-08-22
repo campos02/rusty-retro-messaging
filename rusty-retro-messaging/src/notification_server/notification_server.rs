@@ -1,14 +1,15 @@
-use super::contact_verification_error::ContactVerificationError;
+use crate::errors::server_error::ServerError;
+use crate::errors::thread_command_error::ThreadCommandError;
 use crate::notification_server::commands::fln;
 use crate::notification_server::handlers::handle_authentication_command::handle_authentication_command;
 use crate::notification_server::handlers::handle_thread_command::handle_thread_command;
 use crate::notification_server::handlers::handle_user_command::handle_user_command;
 use crate::notification_server::handlers::handle_ver::handle_ver;
 use crate::receive_split::receive_split;
-use crate::{
-    Message, error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
-};
+use crate::{Message, models::transient::authenticated_user::AuthenticatedUser};
+use log::error;
 use sqlx::{MySql, Pool};
+use std::error;
 use tokio::{
     net::{TcpStream, tcp::WriteHalf},
     sync::broadcast,
@@ -16,9 +17,9 @@ use tokio::{
 
 pub struct NotificationServer {
     pool: Pool<MySql>,
-    pub broadcast_tx: broadcast::Sender<Message>,
+    broadcast_tx: broadcast::Sender<Message>,
     contact_rx: Option<broadcast::Receiver<Message>>,
-    pub authenticated_user: Option<AuthenticatedUser>,
+    authenticated_user: Option<AuthenticatedUser>,
     protocol_version: Option<usize>,
 }
 
@@ -33,16 +34,36 @@ impl NotificationServer {
         }
     }
 
-    pub async fn listen(&mut self, socket: &mut TcpStream) -> Result<(), ErrorCommand> {
+    pub async fn listen(
+        &mut self,
+        socket: &mut TcpStream,
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         let (mut rd, mut wr) = socket.split();
         if self.authenticated_user.is_some() {
             tokio::select! {
                 messages = receive_split(&mut rd) => {
-                    self.handle_client_commands(&mut wr, messages?).await?;
+                    match messages {
+                        Ok(messages) => {
+                            if let Err(error) = self.handle_client_commands(&mut wr, messages).await {
+                                error!("{error}");
+                                if let Some(user) = self.authenticated_user.as_ref() {
+                                    self.broadcast_tx.send(Message::RemoveTx(user.email.clone()))?;
+                                    self.send_fln_to_contacts().await?;
+                                }
+
+                                self.broadcast_tx.send(Message::RemoveUser)?;
+                            }
+                        }
+
+                        Err(error) => {
+                            error!("{error}");
+                            self.broadcast_tx.send(Message::RemoveUser)?;
+                        }
+                    }
                 }
 
-                received = self.contact_rx.as_mut().ok_or(ErrorCommand::Disconnect("Could not receive from threads".to_string()))?.recv() => {
-                    self.handle_thread_commands(&mut wr, received.or(Err(ErrorCommand::Disconnect("Could not receive from threads".to_string())))?).await?;
+                received = self.contact_rx.as_mut().ok_or(ThreadCommandError::ReceivingError)?.recv() => {
+                    self.handle_thread_commands(&mut wr, received?).await?;
                 }
             }
         } else {
@@ -57,39 +78,38 @@ impl NotificationServer {
         &mut self,
         wr: &mut WriteHalf<'_>,
         messages: Vec<Vec<u8>>,
-    ) -> Result<(), ErrorCommand> {
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         for message in messages {
             if self.protocol_version.is_none() {
-                self.protocol_version = handle_ver(wr, message).await?;
+                self.protocol_version = Some(handle_ver(wr, message).await?);
                 continue;
             }
 
             if self.authenticated_user.is_none() {
-                let (authenticated_user, contact_rx) = handle_authentication_command(
-                    self.protocol_version.ok_or(ErrorCommand::Disconnect(
-                        "Could not get protocol version".to_string(),
-                    ))?,
+                let Some((authenticated_user, contact_rx)) = handle_authentication_command(
+                    self.protocol_version
+                        .ok_or(ServerError::CouldNotGetProtocolVersion)?,
                     &self.pool,
                     &self.broadcast_tx,
                     wr,
                     message,
                 )
-                .await?;
+                .await?
+                else {
+                    continue;
+                };
 
-                self.authenticated_user = authenticated_user;
-                self.contact_rx = contact_rx;
+                self.authenticated_user = Some(authenticated_user);
+                self.contact_rx = Some(contact_rx);
                 continue;
             }
 
             handle_user_command(
-                self.protocol_version.ok_or(ErrorCommand::Disconnect(
-                    "Could not get protocol version".to_string(),
-                ))?,
+                self.protocol_version
+                    .ok_or(ServerError::CouldNotGetProtocolVersion)?,
                 self.authenticated_user
                     .as_mut()
-                    .ok_or(ErrorCommand::Disconnect(
-                        "Could not get authenticated user".to_string(),
-                    ))?,
+                    .ok_or(ServerError::CouldNotGetAuthenticatedUser)?,
                 &self.pool,
                 &self.broadcast_tx,
                 wr,
@@ -105,7 +125,7 @@ impl NotificationServer {
         &mut self,
         wr: &mut WriteHalf<'_>,
         message: Message,
-    ) -> Result<(), ErrorCommand> {
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         let Message::ToContact {
             sender,
             receiver: _,
@@ -116,14 +136,11 @@ impl NotificationServer {
         };
 
         handle_thread_command(
-            self.protocol_version.ok_or(ErrorCommand::Disconnect(
-                "Could not get protocol version".to_string(),
-            ))?,
+            self.protocol_version
+                .ok_or(ThreadCommandError::CouldNotGetProtocolVersion)?,
             self.authenticated_user
                 .as_mut()
-                .ok_or(ErrorCommand::Disconnect(
-                    "Could not get authenticated user".to_string(),
-                ))?,
+                .ok_or(ThreadCommandError::CouldNotGetAuthenticatedUser)?,
             sender,
             &self.broadcast_tx,
             wr,
@@ -134,70 +151,34 @@ impl NotificationServer {
         Ok(())
     }
 
-    pub async fn send_fln_to_contacts(&mut self) -> Result<(), ErrorCommand> {
+    pub async fn send_fln_to_contacts(
+        &mut self,
+    ) -> Result<(), Box<dyn error::Error + Send + Sync>> {
         for email in self
             .authenticated_user
             .as_ref()
-            .ok_or(ErrorCommand::Disconnect(
-                "Could not get authenticated user".to_string(),
-            ))?
+            .ok_or(ServerError::CouldNotGetAuthenticatedUser)?
             .contacts
             .keys()
         {
             let fln_command = fln::convert(
                 self.authenticated_user
                     .as_ref()
-                    .ok_or(ErrorCommand::Disconnect(
-                        "Could not get authenticated user".to_string(),
-                    ))?,
-                "",
+                    .ok_or(ServerError::CouldNotGetAuthenticatedUser)?,
             );
 
             let message = Message::ToContact {
                 sender: self
                     .authenticated_user
                     .as_ref()
-                    .ok_or(ErrorCommand::Disconnect(
-                        "Could not get authenticated user".to_string(),
-                    ))?
+                    .ok_or(ServerError::CouldNotGetAuthenticatedUser)?
                     .email
                     .clone(),
                 receiver: email.clone(),
                 message: fln_command,
             };
 
-            self.broadcast_tx
-                .send(message)
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to broadcast".to_string(),
-                )))?;
-        }
-
-        Ok(())
-    }
-
-    pub fn verify_contact(
-        authenticated_user: &AuthenticatedUser,
-        email: &String,
-    ) -> Result<(), ContactVerificationError> {
-        if let Some(contact) = authenticated_user.contacts.get(email) {
-            if *authenticated_user.blp == "BL" && !contact.in_allow_list {
-                return Err(ContactVerificationError::ContactNotInAllowList);
-            }
-
-            if contact.in_block_list {
-                return Err(ContactVerificationError::ContactInBlockList);
-            }
-
-            if let Some(presence) = &authenticated_user.presence {
-                if **presence == "HDN" {
-                    return Err(ContactVerificationError::UserAppearingOffline);
-                }
-            } else {
-                return Err(ContactVerificationError::UserAppearingOffline);
-            }
-        } else if *authenticated_user.blp == "BL" && *email != *authenticated_user.email {
-            return Err(ContactVerificationError::ContactNotInAllowList);
+            self.broadcast_tx.send(message)?;
         }
 
         Ok(())

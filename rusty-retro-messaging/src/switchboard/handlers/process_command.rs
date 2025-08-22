@@ -1,5 +1,5 @@
+use crate::errors::command_error::CommandError;
 use crate::{
-    error_command::ErrorCommand,
     message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
     switchboard::{
@@ -8,6 +8,7 @@ use crate::{
     },
 };
 use log::{error, trace, warn};
+use std::error;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn process_authentication_command(
@@ -15,43 +16,30 @@ pub async fn process_authentication_command(
     wr: &mut WriteHalf<'_>,
     command: &impl AuthenticationCommand,
     message: &[u8],
-) -> Result<(usize, Session, AuthenticatedUser), ErrorCommand> {
+) -> Result<Option<(usize, Session, AuthenticatedUser)>, Box<dyn error::Error + Send + Sync>> {
     match command.handle(broadcast_tx, message).await {
         Ok((responses, protocol_version, session, authenticated_user)) => {
             for reply in &responses {
-                wr.write_all(reply.as_bytes())
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+                wr.write_all(reply.as_bytes()).await?;
                 trace!("S: {reply}");
             }
 
-            Ok((protocol_version, session, authenticated_user))
+            Ok(Some((protocol_version, session, authenticated_user)))
         }
 
-        Err(ErrorCommand::Command(err)) => {
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+        Err(CommandError::Reply(err)) => {
+            wr.write_all(err.as_bytes()).await?;
             warn!("S: {err}");
-            Err(ErrorCommand::Command(err))
+            Ok(None)
         }
 
-        Err(ErrorCommand::Disconnect(err)) => {
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+        Err(CommandError::ReplyAndDisconnect(err)) => {
+            wr.write_all(err.as_bytes()).await?;
             error!("S: {err}");
-            Err(ErrorCommand::Disconnect(err))
+            Err(CommandError::ReplyAndDisconnect(err).into())
         }
+
+        Err(err) => Err(err.into()),
     }
 }
 
@@ -62,44 +50,32 @@ pub async fn process_session_command(
     wr: &mut WriteHalf<'_>,
     command: &impl Command,
     message: &[u8],
-) -> Result<Vec<String>, ErrorCommand> {
+) -> Result<Vec<String>, Box<dyn error::Error + Send + Sync>> {
     match command
         .handle(protocol_version, authenticated_user, session, message)
         .await
     {
         Ok(responses) => {
             for reply in &responses {
-                wr.write_all(reply.as_bytes())
-                    .await
-                    .or(Err(ErrorCommand::Disconnect(
-                        "Could not send to client over socket".to_string(),
-                    )))?;
-
+                wr.write_all(reply.as_bytes()).await?;
                 trace!("S: {reply}");
             }
+
             Ok(responses)
         }
 
-        Err(ErrorCommand::Command(err)) => {
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+        Err(CommandError::Reply(err)) => {
+            wr.write_all(err.as_bytes()).await?;
             warn!("S: {err}");
-            Err(ErrorCommand::Command(err))
+            Ok(vec![])
         }
 
-        Err(ErrorCommand::Disconnect(err)) => {
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+        Err(CommandError::ReplyAndDisconnect(err)) => {
+            wr.write_all(err.as_bytes()).await?;
             error!("S: {err}");
-            Err(ErrorCommand::Disconnect(err))
+            Err(CommandError::ReplyAndDisconnect(err).into())
         }
+
+        Err(err) => Err(err.into()),
     }
 }

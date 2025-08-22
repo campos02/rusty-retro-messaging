@@ -1,6 +1,7 @@
+use crate::errors::command_error::CommandError;
+use crate::errors::server_error::ServerError;
 use crate::switchboard::handlers::process_command::process_session_command;
 use crate::{
-    error_command::ErrorCommand,
     message::Message,
     models::transient::authenticated_user::AuthenticatedUser,
     switchboard::{
@@ -10,6 +11,7 @@ use crate::{
 };
 use core::str;
 use log::{trace, warn};
+use std::error;
 use tokio::{
     io::AsyncWriteExt,
     net::tcp::WriteHalf,
@@ -23,14 +25,12 @@ pub async fn handle_session_command(
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,
-) -> Result<(), ErrorCommand> {
+) -> Result<(), Box<dyn error::Error + Send + Sync>> {
     let command_string = unsafe { str::from_utf8_unchecked(&command) };
     let command_string = command_string
         .lines()
         .next()
-        .ok_or(ErrorCommand::Command(
-            "Could not get command from client message".to_string(),
-        ))?
+        .ok_or(CommandError::CouldNotGetCommand)?
         .to_string()
         + "\r\n";
 
@@ -39,28 +39,18 @@ pub async fn handle_session_command(
 
     match *args.first().unwrap_or(&"") {
         "USR" => {
-            let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+            let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
             let err = format!("911 {tr_id}\r\n");
 
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(err.as_bytes()).await?;
             warn!("S: {err}");
         }
 
         "ANS" => {
-            let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+            let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
             let err = format!("911 {tr_id}\r\n");
 
-            wr.write_all(err.as_bytes())
-                .await
-                .or(Err(ErrorCommand::Disconnect(
-                    "Could not send to client over socket".to_string(),
-                )))?;
-
+            wr.write_all(err.as_bytes()).await?;
             warn!("S: {err}");
         }
 
@@ -90,7 +80,7 @@ pub async fn handle_session_command(
         }
 
         "OUT" => {
-            return Err(ErrorCommand::Disconnect("Client disconnected".to_string()));
+            return Err(ServerError::Disconnected.into());
         }
 
         _ => warn!("Unmatched command: {command_string}"),

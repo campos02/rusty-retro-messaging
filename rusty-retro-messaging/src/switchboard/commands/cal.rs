@@ -1,8 +1,10 @@
-use super::{invitation_error::InvitationError, rng};
+use super::rng;
+use crate::errors::command_error::CommandError;
+use crate::errors::invitation_error::InvitationError;
 use crate::switchboard::commands::traits::command::Command;
 use crate::{
-    error_command::ErrorCommand, message::Message,
-    models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
+    message::Message, models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
 };
 use core::str;
 use std::sync::Arc;
@@ -25,26 +27,29 @@ impl Command for Cal {
         user: &mut AuthenticatedUser,
         session: &mut Session,
         command: &[u8],
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
 
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let args: Vec<&str> = command_string.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let email = args
             .get(2)
             .map(|str| Arc::new(str.to_string()))
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         {
-            let principals = session
-                .principals
-                .lock()
-                .or(Err(ErrorCommand::Disconnect(format!("500 {tr_id}\r\n"))))?;
+            let principals =
+                session
+                    .principals
+                    .lock()
+                    .or(Err(CommandError::ReplyAndDisconnect(format!(
+                        "500 {tr_id}\r\n"
+                    ))))?;
 
             if principals.contains_key(&email) {
-                return Err(ErrorCommand::Command(format!("215 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
             }
         }
 
@@ -56,12 +61,9 @@ impl Command for Cal {
 
         self.broadcast_tx
             .send(message)
-            .or(Err(ErrorCommand::Disconnect(
-                "Could not send to broadcast".to_string(),
-            )))?;
+            .map_err(CommandError::CouldNotSendToBroadcast)?;
 
         let mut principal_user;
-
         {
             let mut broadcast_rx = self.broadcast_tx.subscribe();
             loop {
@@ -71,7 +73,7 @@ impl Command for Cal {
                         if let RecvError::Lagged(_) = err {
                             continue;
                         } else {
-                            panic!("Could not receive from broadcast");
+                            return Err(CommandError::CouldNotReceiveFromBroadcast(err));
                         }
                     }
                 };
@@ -82,16 +84,14 @@ impl Command for Cal {
                     authenticated_user,
                     protocol_version: _,
                 } = message
-                {
-                    if sender == email {
+                    && sender == email {
                         principal_user = authenticated_user;
-
                         if !broadcast_rx.is_empty() {
                             continue;
                         }
+
                         break;
                     }
-                }
             }
         }
 
@@ -104,13 +104,14 @@ impl Command for Cal {
             })
         {
             if *presence == "HDN" {
-                return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("217 {tr_id}\r\n")));
             }
         } else {
-            return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
+            return Err(CommandError::Reply(format!("217 {tr_id}\r\n")));
         }
 
-        let rng = rng::generate(&session.session_id, &session.cki_string, user, tr_id)?;
+        let rng = rng::generate(&session.session_id, &session.cki_string, user)
+            .map_err(CommandError::CouldNotCreateRng)?;
         let message = Message::ToContact {
             sender: user.email.clone(),
             receiver: email,
@@ -118,7 +119,7 @@ impl Command for Cal {
         };
 
         if self.broadcast_tx.send(message).is_err() {
-            return Err(ErrorCommand::Command(format!("217 {tr_id}\r\n")));
+            return Err(CommandError::Reply(format!("217 {tr_id}\r\n")));
         }
 
         Ok(vec![format!(

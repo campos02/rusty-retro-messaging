@@ -1,5 +1,5 @@
 use super::traits::user_command::UserCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use sqlx::{MySql, Pool};
 
@@ -19,14 +19,14 @@ impl UserCommand for Gtc {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
 
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let setting = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         if (setting == "A" || setting == "N")
             && sqlx::query!(
@@ -38,7 +38,7 @@ impl UserCommand for Gtc {
             .await
             .is_err()
         {
-            return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+            return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
         }
 
         Ok(vec![command.to_string()])

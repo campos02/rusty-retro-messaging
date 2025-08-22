@@ -1,7 +1,8 @@
 use super::traits::command::Command;
+use crate::errors::command_error::CommandError;
 use crate::{
-    error_command::ErrorCommand, message::Message,
-    models::transient::authenticated_user::AuthenticatedUser, switchboard::session::Session,
+    message::Message, models::transient::authenticated_user::AuthenticatedUser,
+    switchboard::session::Session,
 };
 use core::str;
 
@@ -14,28 +15,25 @@ impl Command for Msg {
         user: &mut AuthenticatedUser,
         session: &mut Session,
         command: &[u8],
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let command_string = unsafe { str::from_utf8_unchecked(command) };
         let command_string = command_string
             .lines()
             .next()
-            .ok_or(ErrorCommand::Command(
-                "Could not get command from client message".to_string(),
-            ))?
+            .ok_or(CommandError::CouldNotGetCommand)?
             .to_string()
             + "\r\n";
 
         let args: Vec<&str> = command_string.trim().split(' ').collect();
-
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let ack_type = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let length = *args
             .get(3)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let email = &user.email;
         let display_name = &user.display_name;
@@ -55,7 +53,7 @@ impl Command for Msg {
         session
             .session_tx
             .send(message)
-            .or(Err(ErrorCommand::Command(format!("NAK {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("NAK {tr_id}\r\n"))))?;
 
         if ack_type == "A" || ack_type == "D" {
             return Ok(vec![format!("ACK {tr_id}\r\n")]);

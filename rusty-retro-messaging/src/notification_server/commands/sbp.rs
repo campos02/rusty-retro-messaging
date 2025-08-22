@@ -1,5 +1,5 @@
 use super::traits::user_command::UserCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::models::contact::Contact;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
@@ -22,23 +22,23 @@ impl UserCommand for Sbp {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let guid = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let parameter = *args
             .get(3)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let contact_display_name = args
             .get(4)
             .map(|str| Arc::new(str.to_string()))
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         if parameter == "MFN" {
             let database_user = sqlx::query_as!(
@@ -49,7 +49,7 @@ impl UserCommand for Sbp {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
             let contact = sqlx::query_as!(
                 Contact,
@@ -65,7 +65,7 @@ impl UserCommand for Sbp {
             )
             .fetch_one(&self.pool)
             .await
-            .or(Err(ErrorCommand::Command(format!("208 {tr_id}\r\n"))))?;
+            .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
             if sqlx::query!(
                 "UPDATE contacts SET display_name = ? WHERE id = ?",
@@ -76,7 +76,7 @@ impl UserCommand for Sbp {
             .await
             .is_err()
             {
-                return Err(ErrorCommand::Command(format!("603 {tr_id}\r\n")));
+                return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
             }
 
             if let Some(contact) = user.contacts.get_mut(&contact.email) {

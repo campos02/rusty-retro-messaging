@@ -1,6 +1,5 @@
-use crate::{
-    error_command::ErrorCommand, models::transient::authenticated_user::AuthenticatedUser,
-};
+use crate::errors::command_error::CommandError;
+use crate::models::transient::authenticated_user::AuthenticatedUser;
 
 pub trait UserCommand {
     async fn handle(
@@ -8,5 +7,5 @@ pub trait UserCommand {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand>;
+    ) -> Result<Vec<String>, CommandError>;
 }

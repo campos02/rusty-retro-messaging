@@ -62,7 +62,6 @@ pub async fn listen(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>)
         };
 
         let tower_service = app.clone();
-
         tokio::spawn(async move {
             let socket = TokioIo::new(socket);
             let hyper_service = hyper::service::service_fn(move |request: Request<Incoming>| {

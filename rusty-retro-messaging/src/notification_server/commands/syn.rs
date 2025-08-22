@@ -1,5 +1,5 @@
 use super::traits::user_command::UserCommand;
-use crate::error_command::ErrorCommand;
+use crate::errors::command_error::CommandError;
 use crate::models::contact::Contact;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
@@ -24,17 +24,17 @@ impl UserCommand for Syn {
         protocol_version: usize,
         command: &str,
         user: &mut AuthenticatedUser,
-    ) -> Result<Vec<String>, ErrorCommand> {
+    ) -> Result<Vec<String>, CommandError> {
         let args: Vec<&str> = command.trim().split(' ').collect();
-        let tr_id = *args.get(1).ok_or(ErrorCommand::Command("".to_string()))?;
+        let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
 
         let first_timestamp = *args
             .get(2)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let second_timestamp = *args
             .get(3)
-            .ok_or(ErrorCommand::Command(format!("201 {tr_id}\r\n")))?;
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let database_user = sqlx::query_as!(
             User,
@@ -44,7 +44,7 @@ impl UserCommand for Syn {
         )
         .fetch_one(&self.pool)
         .await
-        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+        .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
         let gtc = &database_user.gtc;
         let mut responses = vec![format!("GTC {gtc}\r\n")];
@@ -64,7 +64,7 @@ impl UserCommand for Syn {
         )
         .fetch_all(&self.pool)
         .await
-        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+        .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
         let number_of_groups = user_groups.len();
         for group in &user_groups {
@@ -85,7 +85,7 @@ impl UserCommand for Syn {
         )
         .fetch_all(&self.pool)
         .await
-        .or(Err(ErrorCommand::Command(format!("603 {tr_id}\r\n"))))?;
+        .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
         let number_of_contacts = user_contacts.len();
         for contact in user_contacts {
