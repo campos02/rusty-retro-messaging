@@ -11,6 +11,7 @@ use email_address::EmailAddress;
 use log::trace;
 use serde::Deserialize;
 use sqlx::{MySql, Pool};
+use std::env;
 
 #[derive(Deserialize)]
 pub struct CreateUser {
@@ -49,23 +50,26 @@ pub async fn register(
         );
     }
 
-    if sqlx::query!("SELECT code FROM codes WHERE code = ?", payload.code)
-        .fetch_one(&pool)
-        .await
-        .is_err()
-    {
-        return (
-            StatusCode::UNAUTHORIZED,
-            Json(String::from("Code not found")),
-        );
-    }
+    if env::var("USE_REGISTRATION_CODES")
+        .map(|var| var.parse::<bool>().unwrap_or(true))
+        .unwrap_or(true)
+        && sqlx::query!("SELECT code FROM codes WHERE code = ?", payload.code)
+            .fetch_one(&pool)
+            .await
+            .is_err()
+        {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(String::from("Code not found")),
+            );
+        }
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
 
     let Ok(password_hash) = argon2.hash_password(payload.password.as_bytes(), &salt) else {
         return (
-            StatusCode::BAD_REQUEST,
+            StatusCode::INTERNAL_SERVER_ERROR,
             Json(String::from("Could not hash password")),
         );
     };

@@ -84,14 +84,15 @@ impl Command for Cal {
                     authenticated_user,
                     protocol_version: _,
                 } = message
-                    && sender == email {
-                        principal_user = authenticated_user;
-                        if !broadcast_rx.is_empty() {
-                            continue;
-                        }
-
-                        break;
+                    && sender == email
+                {
+                    principal_user = authenticated_user;
+                    if !broadcast_rx.is_empty() {
+                        continue;
                     }
+
+                    break;
+                }
             }
         }
 
