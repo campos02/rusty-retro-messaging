@@ -7,7 +7,6 @@ use crate::notification_server::handlers::handle_user_command::handle_user_comma
 use crate::notification_server::handlers::handle_ver::handle_ver;
 use crate::receive_split::receive_split;
 use crate::{Message, models::transient::authenticated_user::AuthenticatedUser};
-use log::error;
 use sqlx::{MySql, Pool};
 use std::error;
 use tokio::{
@@ -45,19 +44,19 @@ impl NotificationServer {
                     match messages {
                         Ok(messages) => {
                             if let Err(error) = self.handle_client_commands(&mut wr, messages).await {
-                                error!("{error}");
                                 if let Some(user) = self.authenticated_user.as_ref() {
                                     self.broadcast_tx.send(Message::RemoveTx(user.email.clone()))?;
                                     self.send_fln_to_contacts().await?;
                                 }
 
                                 self.broadcast_tx.send(Message::RemoveUser)?;
+                                return Err(error.into());
                             }
                         }
 
                         Err(error) => {
-                            error!("{error}");
                             self.broadcast_tx.send(Message::RemoveUser)?;
+                            return Err(error.into());
                         }
                     }
                 }

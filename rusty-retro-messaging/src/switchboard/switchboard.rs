@@ -50,11 +50,12 @@ impl Switchboard {
             tokio::select! {
                 messages = receive_split(&mut rd) => {
                     if let Err(error) = self.handle_client_commands(&mut wr, messages?).await {
-                        error!("{error}");
                         if let Some(session) = self.session.as_ref() {
                             self.broadcast_tx.send(Message::RemoveSession(session.session_id.clone()))?;
                             self.send_bye_to_principals(false).await?;
                         }
+
+                        return Err(error.into());
                     }
                 }
 
