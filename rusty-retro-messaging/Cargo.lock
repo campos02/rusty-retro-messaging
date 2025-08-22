@@ -665,11 +665,11 @@ checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
 name = "guid-create"
-version = "0.4.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "738068c48cd875ab1ff0bb5de7fa448cb88769ce74783f4eb964257e693f8a19"
+checksum = "c332e3cc6970b85f68ff39438fdb87b5c9e27a0260d720d7d550701d9964baa0"
 dependencies = [
- "rand 0.8.5",
+ "rand 0.9.0",
  "winapi",
 ]
 

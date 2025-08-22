@@ -57,12 +57,12 @@ pub async fn register(
             .fetch_one(&pool)
             .await
             .is_err()
-        {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(String::from("Code not found")),
-            );
-        }
+    {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(String::from("Code not found")),
+        );
+    }
 
     let salt = SaltString::generate(&mut OsRng);
     let argon2 = Argon2::default();
