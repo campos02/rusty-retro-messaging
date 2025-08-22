@@ -22,15 +22,16 @@ pub async fn handle_authentication_command(
 > {
     let command = str::from_utf8(&command)?;
     let args: Vec<&str> = command.trim().split(' ').collect();
-    trace!("C: {command}");
 
     match *args.first().unwrap_or(&"") {
         "CVR" => {
+            trace!("C: {command}");
             process_command(protocol_version, wr, &Cvr, command).await?;
         }
 
         "USR" => match *args.get(3).unwrap_or(&"") {
             "I" => {
+                trace!("C: {command}");
                 let usr = UsrI::new(pool.clone());
                 process_command(protocol_version, wr, &usr, command).await?;
             }
@@ -57,6 +58,7 @@ pub async fn handle_authentication_command(
             }
 
             _ => {
+                trace!("C: {command}");
                 let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
                 let err = format!("201 {tr_id}\r\n");
 
