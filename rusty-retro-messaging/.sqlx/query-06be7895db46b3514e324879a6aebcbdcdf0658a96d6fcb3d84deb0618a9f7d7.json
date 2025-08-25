@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT groups.id, user_id, name, groups.guid FROM groups\n            INNER JOIN users ON groups.user_id = users.id\n            WHERE groups.guid = ? AND email = ? LIMIT 1",
+  "query": "SELECT id, email, password FROM users WHERE email = ? LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -14,16 +14,7 @@
       },
       {
         "ordinal": 1,
-        "name": "user_id",
-        "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | MULTIPLE_KEY | NO_DEFAULT_VALUE",
-          "max_size": 11
-        }
-      },
-      {
-        "ordinal": 2,
-        "name": "name",
+        "name": "email",
         "type_info": {
           "type": "Blob",
           "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
@@ -31,8 +22,8 @@
         }
       },
       {
-        "ordinal": 3,
-        "name": "guid",
+        "ordinal": 2,
+        "name": "password",
         "type_info": {
           "type": "Blob",
           "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
@@ -41,14 +32,13 @@
       }
     ],
     "parameters": {
-      "Right": 2
+      "Right": 1
     },
     "nullable": [
-      false,
       false,
       false,
       false
     ]
   },
-  "hash": "56dc50b8f4382998569b91927d83be7b7f0cc7afffff171913f260cbd9da1137"
+  "hash": "06be7895db46b3514e324879a6aebcbdcdf0658a96d6fcb3d84deb0618a9f7d7"
 }

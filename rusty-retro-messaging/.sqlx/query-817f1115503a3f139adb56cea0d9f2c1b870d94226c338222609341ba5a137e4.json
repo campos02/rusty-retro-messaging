@@ -1,19 +1,10 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT id, token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
+  "query": "SELECT token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "id",
-        "type_info": {
-          "type": "Long",
-          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
-          "max_size": 11
-        }
-      },
-      {
-        "ordinal": 1,
         "name": "token",
         "type_info": {
           "type": "Blob",
@@ -22,7 +13,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 1,
         "name": "valid_until",
         "type_info": {
           "type": "Datetime",
@@ -31,7 +22,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 2,
         "name": "user_id",
         "type_info": {
           "type": "Long",
@@ -46,9 +37,8 @@
     "nullable": [
       false,
       false,
-      false,
       false
     ]
   },
-  "hash": "6e73f372568ebe19a26f2859564b3f6a9660e56a91770db6ee8fed6bad1d71bb"
+  "hash": "817f1115503a3f139adb56cea0d9f2c1b870d94226c338222609341ba5a137e4"
 }

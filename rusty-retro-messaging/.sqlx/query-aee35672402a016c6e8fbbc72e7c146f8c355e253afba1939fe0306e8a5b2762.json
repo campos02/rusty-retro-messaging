@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id FROM codes WHERE code = ?",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "aee35672402a016c6e8fbbc72e7c146f8c355e253afba1939fe0306e8a5b2762"
+}

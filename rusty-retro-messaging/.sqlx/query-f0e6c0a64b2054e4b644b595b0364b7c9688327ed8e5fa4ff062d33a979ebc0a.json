@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id FROM groups WHERE guid = ? AND user_id = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f0e6c0a64b2054e4b644b595b0364b7c9688327ed8e5fa4ff062d33a979ebc0a"
+}

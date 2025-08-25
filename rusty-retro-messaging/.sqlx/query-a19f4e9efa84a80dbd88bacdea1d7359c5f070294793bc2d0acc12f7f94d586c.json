@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id\n                    WHERE email = ? AND user_id = ?\n                    LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a19f4e9efa84a80dbd88bacdea1d7359c5f070294793bc2d0acc12f7f94d586c"
+}

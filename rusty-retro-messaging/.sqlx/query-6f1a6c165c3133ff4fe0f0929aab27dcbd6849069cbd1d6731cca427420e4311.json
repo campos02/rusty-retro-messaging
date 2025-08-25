@@ -1,0 +1,24 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id FROM users WHERE email = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6f1a6c165c3133ff4fe0f0929aab27dcbd6849069cbd1d6731cca427420e4311"
+}

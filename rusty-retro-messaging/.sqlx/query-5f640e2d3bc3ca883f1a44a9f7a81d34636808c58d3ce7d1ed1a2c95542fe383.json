@@ -1,0 +1,34 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id, guid FROM users WHERE email = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "guid",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "5f640e2d3bc3ca883f1a44a9f7a81d34636808c58d3ce7d1ed1a2c95542fe383"
+}

@@ -1,0 +1,54 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT id, display_name, gtc, blp\n                FROM users WHERE email = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": {
+          "type": "Long",
+          "flags": "NOT_NULL | PRIMARY_KEY | AUTO_INCREMENT",
+          "max_size": 11
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "gtc",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "blp",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "03bcf5bb0ee74d460e655e2713e2b4c95bddc003a9ce64f865a5d34fb30f99f9"
+}
