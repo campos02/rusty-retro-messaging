@@ -8,15 +8,20 @@ const storageUrl = import.meta.env.WEBSITE_URL + '/storage';
 		<p>
 			R²M, or Rusty Retro Messaging, is a written from scratch third-party MSNP server.
 		</p>
-		<h2>Status of the project</h2>
-		<p>
-			It currently supports MSNP11 and MSNP12, i.e. what MSN 7.0 and MSN 7.5 use, and has most protocol features working, including
-			messaging and contact actions.
-		</p>
 		<p>
 			This instance and "project homepage" is a private testing one, if you have a code you can register on the top right and use
 			one of the patched installers <a href={storageUrl}>here</a>. Or you can point your client to this same domain.
 		</p>
+		<h2>Client support</h2>
+		<p>
+			At the moment the server supports MSNP8 to MSNP12, which includes:
+		</p>
+		<ul>
+			<li>MSN 5.0</li>
+			<li>MSN 6.2</li>
+			<li>MSN 7.0</li>
+			<li>MSN 7.5</li>
+		</ul>
 		<h2>Open source and self-hostable</h2>
 		<p>
 			This project is to be completely open source, and as such the source code is available
@@ -39,6 +44,10 @@ const storageUrl = import.meta.env.WEBSITE_URL + '/storage';
 
 		p {
 			font-size: 1.1rem;
+		}
+
+		li {
+			padding: 0.2rem;
 		}
 
 		a {
