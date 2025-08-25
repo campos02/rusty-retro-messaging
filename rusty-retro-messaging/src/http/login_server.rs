@@ -1,4 +1,3 @@
-use crate::models::user::User;
 use argon2::{
     Argon2, PasswordHash, PasswordVerifier,
     password_hash::{SaltString, rand_core},
@@ -59,10 +58,8 @@ pub async fn login_server(
         })
         .or(Err(StatusCode::UNAUTHORIZED))?;
 
-    let user = sqlx::query_as!(
-        User,
-        "SELECT id, email, password, display_name, puid, guid, gtc, blp 
-        FROM users WHERE email = ? LIMIT 1",
+    let user = sqlx::query!(
+        "SELECT id, email, password FROM users WHERE email = ? LIMIT 1",
         passport
     )
     .fetch_one(&pool)

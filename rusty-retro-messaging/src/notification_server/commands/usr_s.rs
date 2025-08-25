@@ -1,7 +1,6 @@
 use super::traits::authentication_command::AuthenticationCommand;
 use crate::errors::command_error::CommandError;
 use crate::message::Message;
-use crate::models::token::Token;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
 use chrono::Utc;
@@ -67,9 +66,8 @@ impl AuthenticationCommand for UsrS {
             .get(4)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
-        let token = sqlx::query_as!(
-            Token,
-            "SELECT id, token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
+        let token = sqlx::query!(
+            "SELECT token, valid_until, user_id FROM tokens WHERE token = ? LIMIT 1",
             email.trim()
         )
         .fetch_one(&self.pool)

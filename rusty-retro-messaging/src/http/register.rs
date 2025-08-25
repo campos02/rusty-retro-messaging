@@ -39,7 +39,7 @@ pub async fn register(
         );
     }
 
-    if sqlx::query!("SELECT email FROM users WHERE email = ?", payload.email)
+    if sqlx::query!("SELECT id FROM users WHERE email = ?", payload.email)
         .fetch_one(&pool)
         .await
         .is_ok()
@@ -53,7 +53,7 @@ pub async fn register(
     if env::var("USE_REGISTRATION_CODES")
         .map(|var| var.parse::<bool>().unwrap_or(true))
         .unwrap_or(true)
-        && sqlx::query!("SELECT code FROM codes WHERE code = ?", payload.code)
+        && sqlx::query!("SELECT id FROM codes WHERE code = ?", payload.code)
             .fetch_one(&pool)
             .await
             .is_err()

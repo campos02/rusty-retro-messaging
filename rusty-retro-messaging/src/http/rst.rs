@@ -14,7 +14,6 @@ use super::xml::rst_xml::{
     wsu::{Created, Expires},
     xs,
 };
-use crate::models::user::User;
 use argon2::password_hash::{
     SaltString,
     rand_core::{self, RngCore},
@@ -64,10 +63,8 @@ pub async fn rst(
         return invalid_request_envelope();
     };
 
-    let Ok(user) = sqlx::query_as!(
-        User,
-        "SELECT id, email, password, display_name, puid, guid, gtc, blp 
-        FROM users WHERE email = ? LIMIT 1",
+    let Ok(user) = sqlx::query!(
+        "SELECT id, email, password, puid FROM users WHERE email = ? LIMIT 1",
         username_token.username.content
     )
     .fetch_one(&pool)

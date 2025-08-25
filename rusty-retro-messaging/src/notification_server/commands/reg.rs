@@ -1,7 +1,6 @@
 use super::traits::user_command::UserCommand;
 use crate::errors::command_error::CommandError;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
-use crate::models::user::User;
 use sqlx::{MySql, Pool};
 
 pub struct Reg {
@@ -32,15 +31,11 @@ impl UserCommand for Reg {
             .get(3)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
-        let database_user = sqlx::query_as!(
-            User,
-            "SELECT id, email, password, display_name, puid, guid, gtc, blp 
-                FROM users WHERE email = ? LIMIT 1",
-            *user.email
-        )
-        .fetch_one(&self.pool)
-        .await
-        .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+        let database_user =
+            sqlx::query!("SELECT id FROM users WHERE email = ? LIMIT 1", *user.email)
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
         if sqlx::query!(
             "SELECT id FROM groups WHERE name = ? AND user_id = ? LIMIT 1",

@@ -26,7 +26,7 @@ impl Command for UsrI {
             .get(4)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
-        if sqlx::query!("SELECT email FROM users WHERE email = ?", email.trim())
+        if sqlx::query!("SELECT id FROM users WHERE email = ?", email.trim())
             .fetch_one(&self.pool)
             .await
             .is_err()

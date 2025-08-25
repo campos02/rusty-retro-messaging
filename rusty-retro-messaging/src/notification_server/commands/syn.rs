@@ -4,7 +4,6 @@ use crate::models::contact::Contact;
 use crate::models::group::Group;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::transient::transient_contact::TransientContact;
-use crate::models::user::User;
 use sqlx::{MySql, Pool};
 use std::sync::Arc;
 
@@ -29,9 +28,8 @@ impl UserCommand for Syn {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
 
-        let database_user = sqlx::query_as!(
-            User,
-            "SELECT id, email, password, display_name, puid, guid, gtc, blp 
+        let database_user = sqlx::query!(
+            "SELECT id, display_name, gtc, blp
                 FROM users WHERE email = ? LIMIT 1",
             *user.email
         )
