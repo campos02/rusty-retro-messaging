@@ -1,4 +1,5 @@
 pub mod adc;
+pub mod add;
 pub mod adg;
 pub mod blp;
 pub mod chg;
@@ -9,6 +10,7 @@ pub mod gtc;
 pub mod iln;
 pub mod nln;
 pub mod prp;
+pub mod rea;
 pub mod reg;
 pub mod rem;
 pub mod rmg;

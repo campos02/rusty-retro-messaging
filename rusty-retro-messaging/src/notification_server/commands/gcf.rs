@@ -6,13 +6,15 @@ pub struct Gcf;
 impl Command for Gcf {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
     ) -> Result<Vec<String>, CommandError> {
-        let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
+
+        if protocol_version < 10 {
+            return Err(CommandError::Reply(format!("502 {tr_id}\r\n")));
+        }
 
         let mut payload = r#"<?xml version= "1.0" encoding="utf-8" ?>"#.to_string();
         payload.push_str(

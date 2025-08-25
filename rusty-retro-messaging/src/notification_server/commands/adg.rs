@@ -17,13 +17,12 @@ impl Adg {
 impl UserCommand for Adg {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
-        let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
-
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let group_name = *args
             .get(2)
@@ -57,7 +56,20 @@ impl UserCommand for Adg {
             .await
             .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
-            Ok(vec![format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")])
+            Ok(vec![if protocol_version >= 10 {
+                format!("ADG {tr_id} 1 {group_name} {group_guid}\r\n")
+            } else {
+                let group = sqlx::query!("SELECT id FROM groups WHERE guid = ?", group_guid)
+                    .fetch_one(&self.pool)
+                    .await
+                    .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+
+                *version_number += 1;
+                format!(
+                    "ADG {tr_id} {version_number} {group_name} {} 0\r\n",
+                    group.id
+                )
+            }])
         }
     }
 }

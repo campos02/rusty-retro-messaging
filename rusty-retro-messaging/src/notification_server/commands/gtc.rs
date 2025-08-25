@@ -16,9 +16,10 @@ impl Gtc {
 impl UserCommand for Gtc {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
 
@@ -41,6 +42,11 @@ impl UserCommand for Gtc {
             return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
         }
 
-        Ok(vec![command.to_string()])
+        Ok(vec![if protocol_version >= 10 {
+            command.to_string()
+        } else {
+            *version_number += 1;
+            format!("GTC {tr_id} {version_number} {setting}\r\n")
+        }])
     }
 }

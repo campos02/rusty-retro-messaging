@@ -1,26 +1,26 @@
-use super::traits::user_command::UserCommand;
 use crate::errors::command_error::CommandError;
 use crate::message::Message;
 use crate::models::contact::Contact;
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::transient::transient_contact::TransientContact;
 use crate::notification_server::commands::fln;
+use crate::notification_server::commands::traits::user_command::UserCommand;
 use sqlx::{MySql, Pool};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 
-pub struct Adc {
+pub struct Add {
     pool: Pool<MySql>,
     broadcast_tx: broadcast::Sender<Message>,
 }
 
-impl Adc {
+impl Add {
     pub fn new(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>) -> Self {
-        Adc { pool, broadcast_tx }
+        Add { pool, broadcast_tx }
     }
 }
 
-impl UserCommand for Adc {
+impl UserCommand for Add {
     async fn handle(
         &self,
         protocol_version: u32,
@@ -28,11 +28,10 @@ impl UserCommand for Adc {
         user: &mut AuthenticatedUser,
         version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
-        let _ = version_number;
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
 
-        if protocol_version < 10 {
+        if protocol_version >= 10 {
             return Err(CommandError::Reply(format!("502 {tr_id}\r\n")));
         }
 
@@ -42,6 +41,10 @@ impl UserCommand for Adc {
 
         let contact_email = *args
             .get(3)
+            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
+
+        let contact_display_name = *args
+            .get(4)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let mut forward_list = false;
@@ -61,20 +64,64 @@ impl UserCommand for Adc {
                 .await
                 .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
-        if contact_email.starts_with("N=") {
-            let contact_email = Arc::new(contact_email.replace("N=", ""));
-            if *contact_email == *user.email {
-                return Err(CommandError::Reply(format!("201 {tr_id}\r\n")));
+        // Add to group
+        if forward_list && args.len() > 5 {
+            let group_id = args[5];
+            let group = sqlx::query!(
+                "SELECT id FROM groups WHERE guid = ? AND user_id = ? LIMIT 1",
+                group_id,
+                database_user.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .or(Err(CommandError::Reply(format!("224 {tr_id}\r\n"))))?;
+
+            let contact = sqlx::query!(
+                    "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                    WHERE email = ? AND user_id = ?
+                    LIMIT 1",
+                    contact_email,
+                    database_user.id
+                )
+                .fetch_one(&self.pool)
+                .await
+                .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
+
+            if sqlx::query!(
+                "SELECT id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
+                group.id,
+                contact.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .is_ok()
+            {
+                return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
             }
 
+            sqlx::query!(
+                "INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)",
+                group.id,
+                contact.id
+            )
+            .execute(&self.pool)
+            .await
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+
+            *version_number += 1;
+            Ok(vec![format!(
+                "ADD {tr_id} {list} {version_number} {contact_email} {contact_display_name} {group_id}\r\n"
+            )])
+        } else {
             let contact_user = sqlx::query!(
                 "SELECT id, guid FROM users WHERE email = ? LIMIT 1",
-                *contact_email
+                contact_email
             )
             .fetch_one(&self.pool)
             .await
             .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
+            let contact_email = Arc::new(contact_email.to_string());
             if let Ok(contact) = sqlx::query_as!(
                 Contact,
                 "SELECT contacts.id, user_id, contact_id, contacts.display_name, email, guid,
@@ -106,7 +153,7 @@ impl UserCommand for Adc {
                         return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
-                    if let Some(contact) = user.contacts.get_mut(&contact_email) {
+                    if let Some(contact) = user.contacts.get_mut(&contact_email.to_string()) {
                         contact.in_forward_list = forward_list;
                     };
                 } else if allow_list {
@@ -125,7 +172,7 @@ impl UserCommand for Adc {
                         return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
-                    if let Some(contact) = user.contacts.get_mut(&contact_email) {
+                    if let Some(contact) = user.contacts.get_mut(&contact_email.to_string()) {
                         contact.in_allow_list = allow_list;
                     };
                 } else if block_list {
@@ -144,13 +191,13 @@ impl UserCommand for Adc {
                         return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                     }
 
-                    if let Some(contact) = user.contacts.get_mut(&contact_email) {
+                    if let Some(contact) = user.contacts.get_mut(&contact_email.to_string()) {
                         contact.in_block_list = block_list;
                     };
                 }
             } else {
                 let contact_display_name = if forward_list && let Some(display_name) = args.get(4) {
-                    Arc::new(display_name.replace("F=", ""))
+                    Arc::new(display_name.to_string())
                 } else {
                     contact_email.clone()
                 };
@@ -165,9 +212,9 @@ impl UserCommand for Adc {
                     allow_list,
                     block_list
                 )
-                .execute(&self.pool)
-                .await
-                .is_err()
+                    .execute(&self.pool)
+                    .await
+                    .is_err()
                 {
                     return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
                 }
@@ -184,105 +231,43 @@ impl UserCommand for Adc {
                         in_block_list: block_list,
                     },
                 );
-            };
+            }
 
-            return if forward_list {
-                let contact_guid = contact_user.guid;
-                let contact_display_name = *args
-                    .get(4)
-                    .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
-
+            if forward_list {
                 let message = Message::ToContact {
                     sender: user.email.clone(),
                     receiver: contact_email.clone(),
-                    message: convert(user),
+                    message: convert(user, version_number),
                 };
 
                 self.broadcast_tx
                     .send(message)
                     .map_err(CommandError::CouldNotSendToBroadcast)?;
+            } else if block_list {
+                let fln_command = fln::convert(user);
+                let message = Message::ToContact {
+                    sender: user.email.clone(),
+                    receiver: contact_email.clone(),
+                    message: fln_command,
+                };
 
-                Ok(vec![format!(
-                    "ADC {tr_id} {list} N={contact_email} {contact_display_name} C={contact_guid}\r\n"
-                )])
-            } else {
-                if block_list {
-                    let fln_command = fln::convert(user);
-                    let message = Message::ToContact {
-                        sender: user.email.clone(),
-                        receiver: contact_email.clone(),
-                        message: fln_command,
-                    };
-
-                    self.broadcast_tx
-                        .send(message)
-                        .map_err(CommandError::CouldNotSendToBroadcast)?;
-                }
-
-                Ok(vec![format!("ADC {tr_id} {list} N={contact_email}\r\n")])
-            };
-        // Add to group
-        } else if contact_email.starts_with("C=") && list == "FL" {
-            let contact_guid = contact_email.replace("C=", "");
-            let contact_display_name = args
-                .get(4)
-                .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?
-                .replace("F=", "");
-
-            let group_guid = contact_display_name.replace("C=", "");
-            let group = sqlx::query!(
-                "SELECT id FROM groups WHERE guid = ? AND user_id = ? LIMIT 1",
-                group_guid,
-                database_user.id
-            )
-            .fetch_one(&self.pool)
-            .await
-            .or(Err(CommandError::Reply(format!("224 {tr_id}\r\n"))))?;
-
-            let contact = sqlx::query!(
-                "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id
-                WHERE guid = ? AND user_id = ?
-                LIMIT 1",
-                contact_guid,
-                database_user.id
-            )
-            .fetch_one(&self.pool)
-            .await
-            .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
-
-            if sqlx::query!(
-                "SELECT id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
-                group.id,
-                contact.id
-            )
-            .fetch_one(&self.pool)
-            .await
-            .is_ok()
-            {
-                return Err(CommandError::Reply(format!("215 {tr_id}\r\n")));
+                self.broadcast_tx
+                    .send(message)
+                    .map_err(CommandError::CouldNotSendToBroadcast)?;
             }
 
-            sqlx::query!(
-                "INSERT INTO group_members (group_id, contact_id) VALUES (?, ?)",
-                group.id,
-                contact.id
-            )
-            .execute(&self.pool)
-            .await
-            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
-
-            return Ok(vec![format!(
-                "ADC {tr_id} {list} C={contact_guid} {group_guid}\r\n"
-            )]);
+            *version_number += 1;
+            Ok(vec![format!(
+                "ADD {tr_id} {list} {version_number} {contact_email} {contact_display_name}\r\n"
+            )])
         }
-
-        Err(CommandError::Reply(format!("208 {tr_id}\r\n")))
     }
 }
 
-pub fn convert(user: &AuthenticatedUser) -> String {
+pub fn convert(user: &AuthenticatedUser, version_number: &mut u32) -> String {
     let user_email = &user.email;
     let user_display_name = &user.display_name;
 
-    format!("ADC 0 RL N={user_email} F={user_display_name}\r\n")
+    *version_number += 1;
+    format!("ADD 0 RL {version_number} {user_email} {user_display_name}\r\n")
 }

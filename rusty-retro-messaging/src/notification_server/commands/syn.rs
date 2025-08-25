@@ -21,20 +21,13 @@ impl Syn {
 impl UserCommand for Syn {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
-
-        let first_timestamp = *args
-            .get(2)
-            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
-
-        let second_timestamp = *args
-            .get(3)
-            .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
         let database_user = sqlx::query_as!(
             User,
@@ -53,9 +46,10 @@ impl UserCommand for Syn {
         user.blp = blp;
         responses.push(format!("BLP {}\r\n", user.blp));
 
-        let display_name = database_user.display_name;
-        user.display_name = Arc::new(display_name);
-        responses.push(format!("PRP MFN {}\r\n", user.display_name));
+        if protocol_version >= 10 {
+            user.display_name = Arc::new(database_user.display_name);
+            responses.push(format!("PRP MFN {}\r\n", user.display_name));
+        }
 
         let user_groups = sqlx::query_as!(
             Group,
@@ -68,9 +62,11 @@ impl UserCommand for Syn {
 
         let number_of_groups = user_groups.len();
         for group in &user_groups {
-            let name = &group.name;
-            let guid = &group.guid;
-            responses.push(format!("LSG {name} {guid}\r\n"));
+            responses.push(if protocol_version >= 10 {
+                format!("LSG {} {}\r\n", group.name, group.guid)
+            } else {
+                format!("LSG {} {} 0\r\n", group.name, group.id)
+            });
         }
 
         let user_contacts = sqlx::query_as!(
@@ -132,13 +128,15 @@ impl UserCommand for Syn {
             }
 
             if !contact.in_forward_list {
-                let mut lst = format!("LST N={contact_email} F={display_name} {listbit}\r\n");
-                if protocol_version >= 12 {
+                responses.push(if protocol_version >= 12 {
                     // Only the Windows Live type is supported at the moment
-                    lst = lst.replace("\r\n", " 1\r\n");
-                }
+                    format!("LST N={contact_email} F={display_name} {listbit} 1\r\n")
+                } else if protocol_version >= 10 {
+                    format!("LST N={contact_email} F={display_name} {listbit}\r\n")
+                } else {
+                    format!("LST {contact_email} {display_name} {listbit}\r\n")
+                });
 
-                responses.push(lst);
                 continue;
             }
 
@@ -155,8 +153,14 @@ impl UserCommand for Syn {
                 .await
                 .is_ok()
                 {
-                    let guid = &group.guid;
-                    group_list.push_str(format!("{guid},").as_str());
+                    group_list.push_str(
+                        if protocol_version >= 10 {
+                            format!("{},", group.guid)
+                        } else {
+                            format!("{},", group.id)
+                        }
+                        .as_str(),
+                    );
                 }
             }
 
@@ -164,21 +168,44 @@ impl UserCommand for Syn {
                 group_list = list.to_string();
             }
 
-            let mut lst = format!(
-                "LST N={contact_email} F={display_name} C={guid} {listbit} {group_list}\r\n"
-            );
-
-            if protocol_version >= 12 {
+            responses.push(if protocol_version >= 12 {
                 // Only the Windows Live type is supported at the moment
-                lst = format!(
+                format!(
                     "LST N={contact_email} F={display_name} C={guid} {listbit} 1 {group_list}\r\n"
-                );
-            }
-
-            responses.push(lst);
+                )
+            } else if protocol_version >= 10 {
+                format!(
+                    "LST N={contact_email} F={display_name} C={guid} {listbit} {group_list}\r\n"
+                )
+            } else {
+                format!("LST {contact_email} {display_name} {listbit} {group_list}\r\n")
+            });
         }
 
-        responses.insert(0, format!("SYN {tr_id} {first_timestamp} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));
+        if protocol_version >= 10 {
+            let first_timestamp = *args
+                .get(2)
+                .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
+
+            let second_timestamp = *args
+                .get(3)
+                .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
+
+            responses.insert(0, format!("SYN {tr_id} {first_timestamp} {second_timestamp} {number_of_contacts} {number_of_groups}\r\n"));
+        } else {
+            let client_version_number = args
+                .get(2)
+                .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?
+                .parse::<u32>()
+                .or(Err(CommandError::Reply(format!("201 {tr_id}\r\n"))))?;
+
+            *version_number = client_version_number + 1;
+            responses.insert(
+                0,
+                format!("SYN {tr_id} {version_number} {number_of_contacts} {number_of_groups}\r\n"),
+            );
+        }
+
         Ok(responses)
     }
 }

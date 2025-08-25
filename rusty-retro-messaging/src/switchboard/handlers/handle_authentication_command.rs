@@ -20,7 +20,7 @@ pub async fn handle_authentication_command(
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,
-) -> Result<Option<(usize, Session, AuthenticatedUser)>, Box<dyn error::Error + Send + Sync>> {
+) -> Result<Option<(u32, Session, AuthenticatedUser)>, Box<dyn error::Error + Send + Sync>> {
     let command_string = unsafe { str::from_utf8_unchecked(&command) };
     let command_string = command_string
         .lines()

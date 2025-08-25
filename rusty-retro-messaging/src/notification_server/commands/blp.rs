@@ -17,12 +17,11 @@ impl Blp {
 impl UserCommand for Blp {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
-        let _ = protocol_version;
-
         let args: Vec<&str> = command.trim().split(' ').collect();
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
         let setting = *args
@@ -45,6 +44,11 @@ impl UserCommand for Blp {
             user.blp = Arc::new(setting.to_string());
         }
 
-        Ok(vec![command.to_string()])
+        Ok(vec![if protocol_version >= 10 {
+            command.to_string()
+        } else {
+            *version_number += 1;
+            format!("BLP {tr_id} {version_number} {setting}\r\n")
+        }])
     }
 }

@@ -19,7 +19,8 @@ pub struct NotificationServer {
     broadcast_tx: broadcast::Sender<Message>,
     contact_rx: Option<broadcast::Receiver<Message>>,
     authenticated_user: Option<AuthenticatedUser>,
-    protocol_version: Option<usize>,
+    protocol_version: Option<u32>,
+    version_number: u32,
 }
 
 impl NotificationServer {
@@ -30,6 +31,7 @@ impl NotificationServer {
             contact_rx: None,
             authenticated_user: None,
             protocol_version: None,
+            version_number: 0,
         }
     }
 
@@ -50,7 +52,7 @@ impl NotificationServer {
                                 }
 
                                 self.broadcast_tx.send(Message::RemoveUser)?;
-                                return Err(error.into());
+                                return Err(error);
                             }
                         }
 
@@ -112,6 +114,7 @@ impl NotificationServer {
                 &self.pool,
                 &self.broadcast_tx,
                 wr,
+                &mut self.version_number,
                 message,
             )
             .await?;
@@ -140,6 +143,7 @@ impl NotificationServer {
             self.authenticated_user
                 .as_mut()
                 .ok_or(ThreadCommandError::CouldNotGetAuthenticatedUser)?,
+            &mut self.version_number,
             sender,
             &self.broadcast_tx,
             wr,

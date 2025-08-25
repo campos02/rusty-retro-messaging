@@ -7,7 +7,7 @@ use tokio::net::tcp::WriteHalf;
 pub async fn handle_ver(
     wr: &mut WriteHalf<'_>,
     command: Vec<u8>,
-) -> Result<usize, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<u32, Box<dyn std::error::Error + Send + Sync>> {
     let command = str::from_utf8(&command)?;
     let args: Vec<&str> = command.trim().split(' ').collect();
     trace!("C: {command}");
@@ -25,7 +25,7 @@ pub async fn handle_ver(
                     .get(2)
                     .unwrap_or(&"")
                     .replace("MSNP", "")
-                    .parse::<usize>()?);
+                    .parse::<u32>()?);
             }
         }
 

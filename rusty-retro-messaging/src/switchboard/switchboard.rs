@@ -22,7 +22,7 @@ pub struct Switchboard {
     session: Option<Session>,
     session_rx: Option<broadcast::Receiver<Message>>,
     authenticated_user: Option<AuthenticatedUser>,
-    protocol_version: Option<usize>,
+    protocol_version: Option<u32>,
 }
 
 impl Switchboard {
@@ -55,7 +55,7 @@ impl Switchboard {
                             self.send_bye_to_principals(false).await?;
                         }
 
-                        return Err(error.into());
+                        return Err(error);
                     }
                 }
 

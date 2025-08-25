@@ -23,7 +23,7 @@ impl Cal {
 impl Command for Cal {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         user: &mut AuthenticatedUser,
         session: &mut Session,
         command: &[u8],

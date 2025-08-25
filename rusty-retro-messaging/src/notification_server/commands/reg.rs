@@ -17,15 +17,14 @@ impl Reg {
 impl UserCommand for Reg {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
-        let _ = protocol_version;
         let args: Vec<&str> = command.trim().split(' ').collect();
-
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;
-        let group_guid = *args
+        let group_id = *args
             .get(2)
             .ok_or(CommandError::Reply(format!("201 {tr_id}\r\n")))?;
 
@@ -55,16 +54,33 @@ impl UserCommand for Reg {
             return Err(CommandError::Reply(format!("228 {tr_id}\r\n")));
         }
 
-        sqlx::query!(
-            "UPDATE groups SET name = ? WHERE guid = ? AND user_id = ?",
-            new_name,
-            group_guid,
-            database_user.id
-        )
-        .execute(&self.pool)
-        .await
-        .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+        if protocol_version >= 10 {
+            sqlx::query!(
+                "UPDATE groups SET name = ? WHERE guid = ? AND user_id = ?",
+                new_name,
+                group_id,
+                database_user.id
+            )
+            .execute(&self.pool)
+            .await
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+        } else {
+            sqlx::query!(
+                "UPDATE groups SET name = ? WHERE id = ? AND user_id = ?",
+                new_name,
+                group_id,
+                database_user.id
+            )
+            .execute(&self.pool)
+            .await
+            .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
+        }
 
-        Ok(vec![format!("REG {tr_id} 1 {group_guid} {new_name} 0\r\n")])
+        Ok(vec![if protocol_version >= 10 {
+            format!("REG {tr_id} 1 {group_id} {new_name}\r\n")
+        } else {
+            *version_number += 1;
+            format!("REG {tr_id} {version_number} {group_id} {new_name} 0\r\n")
+        }])
     }
 }

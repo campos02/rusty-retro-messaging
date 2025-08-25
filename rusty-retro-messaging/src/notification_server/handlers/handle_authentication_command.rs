@@ -11,7 +11,7 @@ use std::error;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_authentication_command(
-    protocol_version: usize,
+    protocol_version: u32,
     pool: &Pool<MySql>,
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,

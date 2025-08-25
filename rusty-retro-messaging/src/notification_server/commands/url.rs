@@ -7,7 +7,7 @@ pub struct Url;
 impl Command for Url {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
     ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;

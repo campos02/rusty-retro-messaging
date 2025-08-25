@@ -5,7 +5,7 @@ use tokio::sync::broadcast;
 pub trait AuthenticationCommand {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         broadcast_tx: &broadcast::Sender<Message>,
         command: &str,
     ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), CommandError>;

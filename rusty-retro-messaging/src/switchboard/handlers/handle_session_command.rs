@@ -19,7 +19,7 @@ use tokio::{
 };
 
 pub async fn handle_session_command(
-    protocol_version: usize,
+    protocol_version: u32,
     authenticated_user: &mut AuthenticatedUser,
     session: &mut Session,
     broadcast_tx: &broadcast::Sender<Message>,

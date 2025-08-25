@@ -50,14 +50,14 @@ pub enum Message {
         sender: Arc<String>,
         receiver: Arc<String>,
         authenticated_user: Option<AuthenticatedUser>,
-        protocol_version: Option<usize>,
+        protocol_version: Option<u32>,
     },
 
     UserDetails {
         sender: Arc<String>,
         receiver: Arc<String>,
         authenticated_user: Option<AuthenticatedUser>,
-        protocol_version: Option<usize>,
+        protocol_version: Option<u32>,
     },
 
     UserCount(u32),

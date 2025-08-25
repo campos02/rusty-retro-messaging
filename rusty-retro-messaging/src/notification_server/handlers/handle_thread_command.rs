@@ -7,8 +7,9 @@ use std::sync::Arc;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn handle_thread_command(
-    protocol_version: usize,
+    protocol_version: u32,
     authenticated_user: &mut AuthenticatedUser,
+    version_number: &mut u32,
     sender: Arc<String>,
     broadcast_tx: &broadcast::Sender<Message>,
     wr: &mut WriteHalf<'_>,
@@ -29,8 +30,20 @@ pub async fn handle_thread_command(
                 contact.presence = Some(Arc::new(presence.to_string()));
             }
 
-            wr.write_all(command.as_bytes()).await?;
-            trace!("S: {command}");
+            if args.len() > 6 && protocol_version < 9 {
+                wr.write_all(
+                    format!(
+                        "{} {} {} {} {} {}\r\n",
+                        args[0], args[1], args[2], args[3], args[4], args[5]
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+                trace!("S: {command}");
+            } else {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            }
         }
 
         "NLN" => {
@@ -46,8 +59,20 @@ pub async fn handle_thread_command(
                 contact.presence = Some(Arc::new(presence.to_string()));
             }
 
-            wr.write_all(command.as_bytes()).await?;
-            trace!("S: {command}");
+            if args.len() > 5 && protocol_version < 9 {
+                wr.write_all(
+                    format!(
+                        "{} {} {} {} {}\r\n",
+                        args[0], args[1], args[2], args[3], args[4]
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+                trace!("S: {command}");
+            } else {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            }
         }
 
         "FLN" => {
@@ -67,9 +92,10 @@ pub async fn handle_thread_command(
 
         "UBX" => {
             trace!("Thread {sender}: {command}");
-            wr.write_all(command.as_bytes()).await?;
-
-            trace!("S: {command}");
+            if protocol_version >= 11 {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            }
         }
 
         "CHG" => {
@@ -79,7 +105,8 @@ pub async fn handle_thread_command(
                 return Ok(());
             }
 
-            let Ok(iln_command) = iln::convert(authenticated_user, &command) else {
+            let Ok(iln_command) = iln::convert(protocol_version, authenticated_user, &command)
+            else {
                 return Ok(());
             };
 
@@ -91,17 +118,19 @@ pub async fn handle_thread_command(
 
             broadcast_tx.send(thread_message)?;
 
-            let Ok(ubx_command) = ubx::convert(authenticated_user) else {
-                return Ok(());
-            };
+            if protocol_version >= 11 {
+                let Ok(ubx_command) = ubx::convert(authenticated_user) else {
+                    return Ok(());
+                };
 
-            let thread_message = Message::ToContact {
-                sender: authenticated_user.email.clone(),
-                receiver: sender,
-                message: ubx_command,
-            };
+                let thread_message = Message::ToContact {
+                    sender: authenticated_user.email.clone(),
+                    receiver: sender,
+                    message: ubx_command,
+                };
 
-            broadcast_tx.send(thread_message)?;
+                broadcast_tx.send(thread_message)?;
+            }
         }
 
         "ADC" => {
@@ -113,7 +142,7 @@ pub async fn handle_thread_command(
                 return Ok(());
             }
 
-            let Ok(nln_command) = nln::convert(authenticated_user) else {
+            let Ok(nln_command) = nln::convert(protocol_version, authenticated_user) else {
                 return Ok(());
             };
 
@@ -124,25 +153,67 @@ pub async fn handle_thread_command(
             };
 
             broadcast_tx.send(thread_message)?;
-            let Ok(ubx_command) = ubx::convert(authenticated_user) else {
-                return Ok(());
-            };
 
-            let thread_message = Message::ToContact {
-                sender: authenticated_user.email.clone(),
-                receiver: sender,
-                message: ubx_command,
-            };
+            if protocol_version >= 11 {
+                let Ok(ubx_command) = ubx::convert(authenticated_user) else {
+                    return Ok(());
+                };
 
-            broadcast_tx.send(thread_message)?;
-            wr.write_all(command.as_bytes()).await?;
-            trace!("S: {command}");
+                let thread_message = Message::ToContact {
+                    sender: authenticated_user.email.clone(),
+                    receiver: sender,
+                    message: ubx_command,
+                };
+
+                broadcast_tx.send(thread_message)?;
+            }
+
+            if protocol_version >= 10 || args.len() < 5 {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            } else {
+                let mut email = args[3].to_string();
+                if email.len() > 2 {
+                    email.drain(..2);
+                }
+
+                let mut display_name = args[4].to_string();
+                if display_name.len() > 2 {
+                    display_name.drain(..2);
+                }
+
+                *version_number += 1;
+                wr.write_all(
+                    format!(
+                        "{} {} {} {version_number} {email} {display_name}\r\n",
+                        "ADD", args[1], args[2]
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+
+                trace!("S: {command}");
+            }
         }
 
         "REM" => {
             trace!("Thread {sender}: {command}");
-            wr.write_all(command.as_bytes()).await?;
-            trace!("S: {command}");
+            if protocol_version >= 10 || args.len() < 4 {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            } else {
+                *version_number += 1;
+                wr.write_all(
+                    format!(
+                        "{} {} {} {version_number} {}\r\n",
+                        args[0], args[1], args[2], args[3]
+                    )
+                    .as_bytes(),
+                )
+                .await?;
+
+                trace!("S: {command}");
+            }
         }
 
         "RNG" => {

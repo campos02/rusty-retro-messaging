@@ -16,7 +16,7 @@ pub async fn process_authentication_command(
     wr: &mut WriteHalf<'_>,
     command: &impl AuthenticationCommand,
     message: &[u8],
-) -> Result<Option<(usize, Session, AuthenticatedUser)>, Box<dyn error::Error + Send + Sync>> {
+) -> Result<Option<(u32, Session, AuthenticatedUser)>, Box<dyn error::Error + Send + Sync>> {
     match command.handle(broadcast_tx, message).await {
         Ok((responses, protocol_version, session, authenticated_user)) => {
             for reply in &responses {
@@ -44,7 +44,7 @@ pub async fn process_authentication_command(
 }
 
 pub async fn process_session_command(
-    protocol_version: usize,
+    protocol_version: u32,
     authenticated_user: &mut AuthenticatedUser,
     session: &mut Session,
     wr: &mut WriteHalf<'_>,

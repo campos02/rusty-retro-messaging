@@ -55,7 +55,7 @@ impl UsrS {
 impl AuthenticationCommand for UsrS {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         broadcast_tx: &broadcast::Sender<Message>,
         command: &str,
     ) -> Result<(Vec<String>, AuthenticatedUser, broadcast::Receiver<Message>), CommandError> {
@@ -111,11 +111,21 @@ impl AuthenticationCommand for UsrS {
                 .map_err(CommandError::CouldNotSendToBroadcast)?;
 
             let contact_rx = tx.subscribe();
-            let replies = vec![
-                format!("USR {tr_id} OK {} 1 0\r\n", database_user.email),
-                String::from("SBS 0 null\r\n"),
+            let mut replies = vec![
+                if protocol_version >= 10 {
+                    format!("USR {tr_id} OK {} 1 0\r\n", database_user.email)
+                } else {
+                    format!(
+                        "USR {tr_id} OK {} {} 1 0\r\n",
+                        database_user.email, database_user.display_name
+                    )
+                },
                 Self::get_hotmail_options(&database_user),
             ];
+
+            if protocol_version >= 10 {
+                replies.insert(1, String::from("SBS 0 null\r\n"));
+            }
 
             return Ok((replies, authenticated_user, contact_rx));
         }

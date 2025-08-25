@@ -11,7 +11,7 @@ use std::error;
 use tokio::{io::AsyncWriteExt, net::tcp::WriteHalf, sync::broadcast};
 
 pub async fn process_command(
-    protocol_version: usize,
+    protocol_version: u32,
     wr: &mut WriteHalf<'_>,
     command: &impl Command,
     message: &str,
@@ -43,7 +43,7 @@ pub async fn process_command(
 }
 
 pub async fn process_authentication_command(
-    protocol_version: usize,
+    protocol_version: u32,
     wr: &mut WriteHalf<'_>,
     broadcast_tx: &broadcast::Sender<Message>,
     command: &impl AuthenticationCommand,
@@ -82,14 +82,20 @@ pub async fn process_authentication_command(
 }
 
 pub async fn process_user_command(
-    protocol_version: usize,
+    protocol_version: u32,
     wr: &mut WriteHalf<'_>,
     authenticated_user: &mut AuthenticatedUser,
+    version_number: &mut u32,
     command: &impl UserCommand,
     message: &str,
 ) -> Result<Vec<String>, Box<dyn error::Error + Send + Sync>> {
     match command
-        .handle(protocol_version, message, authenticated_user)
+        .handle(
+            protocol_version,
+            message,
+            authenticated_user,
+            version_number,
+        )
         .await
     {
         Ok(responses) => {

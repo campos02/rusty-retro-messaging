@@ -23,11 +23,13 @@ impl Chg {
 impl UserCommand for Chg {
     async fn handle(
         &self,
-        protocol_version: usize,
+        protocol_version: u32,
         command: &str,
         user: &mut AuthenticatedUser,
+        version_number: &mut u32,
     ) -> Result<Vec<String>, CommandError> {
         let _ = protocol_version;
+        let _ = version_number;
         let args: Vec<&str> = command.trim().split(' ').collect();
 
         let tr_id = *args.get(1).ok_or(CommandError::NoTrId)?;

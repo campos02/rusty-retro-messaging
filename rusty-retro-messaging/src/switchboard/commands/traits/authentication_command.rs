@@ -10,5 +10,5 @@ pub trait AuthenticationCommand {
         &self,
         broadcast_tx: &broadcast::Sender<Message>,
         command: &[u8],
-    ) -> Result<(Vec<String>, usize, Session, AuthenticatedUser), CommandError>;
+    ) -> Result<(Vec<String>, u32, Session, AuthenticatedUser), CommandError>;
 }

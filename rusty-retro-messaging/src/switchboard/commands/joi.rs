@@ -1,6 +1,6 @@
 use crate::models::transient::authenticated_user::AuthenticatedUser;
 
-pub fn generate(protocol_version: usize, user: &mut AuthenticatedUser, tr_id: &str) -> String {
+pub fn generate(protocol_version: u32, user: &mut AuthenticatedUser, tr_id: &str) -> String {
     let _ = tr_id;
 
     let user_email = &user.email;
