@@ -63,7 +63,7 @@ impl UserCommand for Syn {
             responses.push(if protocol_version >= 10 {
                 format!("LSG {} {}\r\n", group.name, group.guid)
             } else {
-                format!("LSG {} {} 0\r\n", group.name, group.id)
+                format!("LSG {} {} 0\r\n", group.id, group.name)
             });
         }
 

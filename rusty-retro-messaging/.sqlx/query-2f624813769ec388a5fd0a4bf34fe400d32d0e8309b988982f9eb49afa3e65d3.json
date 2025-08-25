@@ -1,6 +1,6 @@
 {
   "db_name": "MySQL",
-  "query": "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id\n                    WHERE email = ? AND user_id = ?\n                    LIMIT 1",
+  "query": "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id\n                WHERE email = ? AND user_id = ?\n                LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -20,5 +20,5 @@
       false
     ]
   },
-  "hash": "a19f4e9efa84a80dbd88bacdea1d7359c5f070294793bc2d0acc12f7f94d586c"
+  "hash": "2f624813769ec388a5fd0a4bf34fe400d32d0e8309b988982f9eb49afa3e65d3"
 }

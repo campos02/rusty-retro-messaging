@@ -65,10 +65,10 @@ impl UserCommand for Add {
                 .or(Err(CommandError::Reply(format!("603 {tr_id}\r\n"))))?;
 
         // Add to group
-        if forward_list && args.len() > 5 {
+        if forward_list && args.len() > 5 && args[5] != "0" {
             let group_id = args[5];
             let group = sqlx::query!(
-                "SELECT id FROM groups WHERE guid = ? AND user_id = ? LIMIT 1",
+                "SELECT id FROM groups WHERE id = ? AND user_id = ? LIMIT 1",
                 group_id,
                 database_user.id
             )
@@ -77,15 +77,15 @@ impl UserCommand for Add {
             .or(Err(CommandError::Reply(format!("224 {tr_id}\r\n"))))?;
 
             let contact = sqlx::query!(
-                    "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id
-                    WHERE email = ? AND user_id = ?
-                    LIMIT 1",
-                    contact_email,
-                    database_user.id
-                )
-                .fetch_one(&self.pool)
-                .await
-                .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
+                "SELECT contacts.id FROM contacts INNER JOIN users ON contacts.contact_id = users.id
+                WHERE email = ? AND user_id = ?
+                LIMIT 1",
+                contact_email,
+                database_user.id
+            )
+            .fetch_one(&self.pool)
+            .await
+            .or(Err(CommandError::Reply(format!("208 {tr_id}\r\n"))))?;
 
             if sqlx::query!(
                 "SELECT id FROM group_members WHERE group_id = ? AND contact_id = ? LIMIT 1",
@@ -114,7 +114,7 @@ impl UserCommand for Add {
             )])
         } else {
             let contact_user = sqlx::query!(
-                "SELECT id, guid FROM users WHERE email = ? LIMIT 1",
+                "SELECT id FROM users WHERE email = ? LIMIT 1",
                 contact_email
             )
             .fetch_one(&self.pool)

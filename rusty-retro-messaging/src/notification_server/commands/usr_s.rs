@@ -5,6 +5,7 @@ use crate::models::transient::authenticated_user::AuthenticatedUser;
 use crate::models::user::User;
 use chrono::Utc;
 use sqlx::{MySql, Pool};
+use std::sync::Arc;
 use tokio::sync::broadcast;
 
 pub struct UsrS {
@@ -89,7 +90,7 @@ impl AuthenticationCommand for UsrS {
                 .send(Message::AddUser)
                 .map_err(CommandError::CouldNotSendToBroadcast)?;
 
-            let authenticated_user = AuthenticatedUser::new(database_user.email.clone());
+            let mut authenticated_user = AuthenticatedUser::new(database_user.email.clone());
             let thread_message = Message::ToContact {
                 sender: database_user.email.clone(),
                 receiver: database_user.email.clone(),
@@ -109,16 +110,19 @@ impl AuthenticationCommand for UsrS {
                 .map_err(CommandError::CouldNotSendToBroadcast)?;
 
             let contact_rx = tx.subscribe();
+            let hotmail_options = Self::get_hotmail_options(&database_user);
+
             let mut replies = vec![
                 if protocol_version >= 10 {
                     format!("USR {tr_id} OK {} 1 0\r\n", database_user.email)
                 } else {
+                    authenticated_user.display_name = Arc::new(database_user.display_name);
                     format!(
                         "USR {tr_id} OK {} {} 1 0\r\n",
-                        database_user.email, database_user.display_name
+                        database_user.email, authenticated_user.display_name
                     )
                 },
-                Self::get_hotmail_options(&database_user),
+                hotmail_options,
             ];
 
             if protocol_version >= 10 {
