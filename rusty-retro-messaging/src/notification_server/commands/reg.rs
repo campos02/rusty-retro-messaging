@@ -72,10 +72,10 @@ impl UserCommand for Reg {
         }
 
         Ok(vec![if protocol_version >= 10 {
-            format!("REG {tr_id} 1 {group_id} {new_name}\r\n")
+            format!("REG {tr_id} {group_id} {new_name}\r\n")
         } else {
             *version_number += 1;
-            format!("REG {tr_id} {version_number} {group_id} {new_name} 0\r\n")
+            format!("REG {tr_id} {version_number} {group_id} {new_name}\r\n")
         }])
     }
 }
