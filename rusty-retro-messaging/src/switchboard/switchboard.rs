@@ -155,14 +155,21 @@ impl Switchboard {
             }
 
             "JOI" => {
-                wr.write_all(&message).await?;
-                trace!("S: {command}");
+                if self.protocol_version >= Some(12) || args.len() < 3 {
+                    wr.write_all(&message).await?;
+                    trace!("S: {command}");
+                } else {
+                    let command = format!("{} {} {}\r\n", args[0], args[1], args[2]);
+                    wr.write_all(command.as_bytes()).await?;
+                    trace!("S: {command}");
+                }
             }
 
             "BYE" => {
                 wr.write_all(&message).await?;
                 trace!("S: {command}");
             }
+
             _ => (),
         };
 

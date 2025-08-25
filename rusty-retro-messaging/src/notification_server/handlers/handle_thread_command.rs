@@ -31,14 +31,12 @@ pub async fn handle_thread_command(
             }
 
             if args.len() > 6 && protocol_version < 9 {
-                wr.write_all(
-                    format!(
-                        "{} {} {} {} {} {}\r\n",
-                        args[0], args[1], args[2], args[3], args[4], args[5]
-                    )
-                    .as_bytes(),
-                )
-                .await?;
+                let command = format!(
+                    "{} {} {} {} {} {}\r\n",
+                    args[0], args[1], args[2], args[3], args[4], args[5]
+                );
+
+                wr.write_all(command.as_bytes()).await?;
                 trace!("S: {command}");
             } else {
                 wr.write_all(command.as_bytes()).await?;
@@ -60,14 +58,12 @@ pub async fn handle_thread_command(
             }
 
             if args.len() > 5 && protocol_version < 9 {
-                wr.write_all(
-                    format!(
-                        "{} {} {} {} {}\r\n",
-                        args[0], args[1], args[2], args[3], args[4]
-                    )
-                    .as_bytes(),
-                )
-                .await?;
+                let command = format!(
+                    "{} {} {} {} {}\r\n",
+                    args[0], args[1], args[2], args[3], args[4]
+                );
+
+                wr.write_all(command.as_bytes()).await?;
                 trace!("S: {command}");
             } else {
                 wr.write_all(command.as_bytes()).await?;
@@ -182,16 +178,13 @@ pub async fn handle_thread_command(
                     display_name.drain(..2);
                 }
 
-                *version_number += 1;
-                wr.write_all(
-                    format!(
-                        "{} {} {} {version_number} {email} {display_name}\r\n",
-                        "ADD", args[1], args[2]
-                    )
-                    .as_bytes(),
-                )
-                .await?;
+                let command = format!(
+                    "{} {} {} {version_number} {email} {display_name}\r\n",
+                    "ADD", args[1], args[2]
+                );
 
+                *version_number += 1;
+                wr.write_all(command.as_bytes()).await?;
                 trace!("S: {command}");
             }
         }
@@ -202,16 +195,13 @@ pub async fn handle_thread_command(
                 wr.write_all(command.as_bytes()).await?;
                 trace!("S: {command}");
             } else {
-                *version_number += 1;
-                wr.write_all(
-                    format!(
-                        "{} {} {} {version_number} {}\r\n",
-                        args[0], args[1], args[2], args[3]
-                    )
-                    .as_bytes(),
-                )
-                .await?;
+                let command = format!(
+                    "{} {} {} {version_number} {}\r\n",
+                    args[0], args[1], args[2], args[3]
+                );
 
+                *version_number += 1;
+                wr.write_all(command.as_bytes()).await?;
                 trace!("S: {command}");
             }
         }
