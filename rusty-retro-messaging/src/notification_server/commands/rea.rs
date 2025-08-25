@@ -72,16 +72,20 @@ impl UserCommand for Rea {
             if let Some(contact) = user.contacts.get_mut(&email.to_string()) {
                 contact.display_name = display_name.clone();
             };
-        } else if sqlx::query!(
-            "UPDATE users SET display_name = ? WHERE id = ?",
-            *display_name,
-            database_user.id
-        )
-        .execute(&self.pool)
-        .await
-        .is_err()
-        {
-            return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
+        } else {
+            if sqlx::query!(
+                "UPDATE users SET display_name = ? WHERE id = ?",
+                *display_name,
+                database_user.id
+            )
+            .execute(&self.pool)
+            .await
+            .is_err()
+            {
+                return Err(CommandError::Reply(format!("603 {tr_id}\r\n")));
+            }
+
+            user.display_name = display_name.clone();
         }
 
         *version_number += 1;

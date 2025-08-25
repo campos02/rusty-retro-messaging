@@ -179,8 +179,44 @@ pub async fn handle_thread_command(
                 }
 
                 let command = format!(
-                    "{} {} {} {version_number} {email} {display_name}\r\n",
-                    "ADD", args[1], args[2]
+                    "ADD {} {} {version_number} {email} {display_name}\r\n",
+                    args[1], args[2]
+                );
+
+                *version_number += 1;
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            }
+        }
+
+        "ADD" => {
+            trace!("Thread {sender}: {command}");
+            if verify_contact::verify_contact(authenticated_user, &sender).is_err() {
+                wr.write_all(command.as_bytes()).await?;
+
+                warn!("S: {command}");
+                return Ok(());
+            }
+
+            let Ok(nln_command) = nln::convert(protocol_version, authenticated_user) else {
+                return Ok(());
+            };
+
+            let thread_message = Message::ToContact {
+                sender: authenticated_user.email.clone(),
+                receiver: sender.clone(),
+                message: nln_command,
+            };
+
+            broadcast_tx.send(thread_message)?;
+
+            if protocol_version <= 9 || args.len() < 6 {
+                wr.write_all(command.as_bytes()).await?;
+                trace!("S: {command}");
+            } else {
+                let command = format!(
+                    "ADC {} {} N={} F={}\r\n",
+                    args[1], args[2], args[4], args[5]
                 );
 
                 *version_number += 1;
