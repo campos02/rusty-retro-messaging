@@ -1,10 +1,15 @@
 ---
 const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-let users = "0 users";
 
-const response = await fetch(`https://${backendName}/_r2m/stats`);
+let response;
+if (import.meta.env.DEV)
+    response = await fetch(`http://${backendName}/_r2m/stats`);
+else
+    response = await fetch(`https://${backendName}/_r2m/stats`);
+
 const data = await response.json();
 
+let users;
 if (data.users == 1) {
     users = "1 user";
 } else {

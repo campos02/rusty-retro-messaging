@@ -6,10 +6,22 @@ import Layout from "../layouts/Layout.astro";
 		<h1>Registration</h1>
 		<form>
             <div class="form-text">
-                <input required type="email" name="email" placeholder="Enter your email">
-                <input required type="password" name="password" placeholder="Enter your password">
-                <input required type="password" name="password_confirmation" placeholder="Confirm your password">
-                <input required type="text" name="code" placeholder="Enter your code">
+                <label>
+                    Email:
+                    <input required type="email" name="email" placeholder="Enter your email">
+                </label>
+                <label>
+                    Password:
+                    <input required type="password" name="password" placeholder="Enter your password">
+                </label>
+                <label>
+                    Password confirmation:
+                    <input required type="password" name="password_confirmation" placeholder="Confirm your password">
+                </label>
+                <label>
+                    Code:
+                    <input required type="text" name="code" placeholder="Enter your code">
+                </label>
             </div>
             <input type="submit" value="Register">
         </form>
@@ -26,7 +38,7 @@ import Layout from "../layouts/Layout.astro";
                 const resultText = document.getElementById("result");
 
                 if (!error)
-                    navigate('/success');
+                    await navigate('/success');
                 else
                     resultText.innerText = `Unable to register: ${error.message}`;
             });
@@ -59,6 +71,12 @@ import Layout from "../layouts/Layout.astro";
         input[type="submit"] {
             padding: 0.2em;
             place-self: center;
+        }
+
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
         }
 
         .form-text {
