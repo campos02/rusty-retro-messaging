@@ -18,7 +18,7 @@ enum HeaderParsingError {
     UrlDecodingError,
 }
 
-pub async fn login_server(
+pub async fn passport_one_four(
     headers: HeaderMap,
     State(pool): State<Pool<MySql>>,
 ) -> impl IntoResponse {

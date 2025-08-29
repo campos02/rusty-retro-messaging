@@ -1,8 +1,8 @@
+use crate::http::middleware::authentication;
 use crate::message::Message;
 use axum::{
     Router,
     http::HeaderValue,
-    middleware,
     routing::{get, post},
 };
 use hyper::{Request, body::Incoming};
@@ -17,11 +17,15 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
-mod login_server;
+mod login;
+mod logout;
+mod middleware;
 mod nexus;
+mod passport_one_four;
 mod register;
 mod rst;
 mod stats;
+mod user;
 mod xml;
 
 /// Starts the HTTP server with hyper so headers can be served with title case
@@ -33,16 +37,27 @@ pub async fn listen(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>)
             .expect("Could not convert FRONTEND_URL to header"),
     );
 
+    let authentication =
+        axum::middleware::from_fn_with_state(pool.clone(), authentication::authentication);
+
     let app = Router::new()
         .route("/_r2m/stats", get(stats::stats))
         .with_state(broadcast_tx)
         .route("/_r2m/register", post(register::register))
+        .route("/_r2m/login", post(login::login))
+        .route(
+            "/_r2m/logout",
+            get(logout::logout).layer(authentication.clone()),
+        )
+        .route("/_r2m/user", get(user::user).layer(authentication))
         .layer(cors)
         .route("/rdr/pprdr.asp", get(nexus::nexus))
-        .route("/login.srf", get(login_server::login_server))
+        .route("/login.srf", get(passport_one_four::passport_one_four))
         .route(
             "/RST.srf",
-            post(rst::rst).layer(middleware::from_fn(xml::content_type_xml::content_type_xml)),
+            post(rst::rst).layer(axum::middleware::from_fn(
+                middleware::content_type_xml::content_type_xml,
+            )),
         )
         .with_state(pool);
 

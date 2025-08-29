@@ -1,4 +1,6 @@
 ---
+import NavBarEndLinks from "./NavBarEndLinks.astro";
+import DefaultNavBarEndLinks from "./DefaultNavBarEndLinks.astro";
 const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
 
 let response;
@@ -21,7 +23,9 @@ if (data.users == 1) {
         <a href="/">R²M</a>
         <a id="users">{users}</a>
     </div>
-    <a href="/register" class="home-link">Register</a>
+    <NavBarEndLinks server:defer>
+        <DefaultNavBarEndLinks slot="fallback"/>
+    </NavBarEndLinks>
 </nav>
 <style>
     nav {
@@ -50,21 +54,13 @@ if (data.users == 1) {
         place-self: center;
         display: flex;
         gap: 2rem;
-        margin-left: 3.5rem;
-    }
-
-    .home-link {
-        place-self: end;
+        margin-left: 7.5rem;
     }
 
     @media (max-width: 530px) {
         nav {
             gap: 1rem;
             grid-template-columns: auto;
-        }
-
-        .home-link {
-            place-self: center;
         }
 
         .pages {

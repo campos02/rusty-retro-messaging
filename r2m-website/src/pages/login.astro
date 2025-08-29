@@ -1,0 +1,91 @@
+---
+import {actions} from "astro:actions";
+import {navigate} from "astro:transitions/client";
+import Layout from "../layouts/Layout.astro";
+---
+<Layout title="Login">
+    <main>
+        <h1>Login</h1>
+        <form>
+            <div class="form-text">
+                <label>
+                    Email:
+                    <input required type="email" name="email" placeholder="Enter your email">
+                </label>
+                <label>
+                    Password:
+                    <input required type="password" name="password" placeholder="Enter your password">
+                </label>
+            </div>
+            <input type="submit" value="Login">
+        </form>
+        <p id="result"/>
+        <script>
+            import { actions } from 'astro:actions';
+            import { navigate } from 'astro:transitions/client';
+
+            const form = document.querySelector('form');
+            form?.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                const formData = new FormData(form);
+                const { error } = await actions.login(formData);
+                const resultText = document.getElementById("result");
+
+                if (!error)
+                    await navigate('/user');
+                else
+                    resultText.innerText = `Unable to login: ${error.message}`;
+            });
+        </script>
+    </main>
+    <style>
+        main {
+            display: grid;
+            grid-template-rows: repeat(2, auto) 1rem;
+            place-self: start center;
+            padding: 1rem 15rem 2rem 15rem;
+        }
+
+        h1 {
+            text-align: center;
+        }
+
+        form {
+            display: grid;
+            gap: 0.5rem;
+            place-self: start center;
+        }
+
+        input {
+            padding: 0.3rem;
+            border-radius: 0.2rem;
+            font-size: 0.9em;
+        }
+
+        input[type="submit"] {
+            padding: 0.2em;
+            place-self: center;
+        }
+
+        label {
+            display: flex;
+            flex-direction: column;
+            gap: 0.3rem;
+        }
+
+        .form-text {
+            display: grid;
+            gap: 1rem;
+        }
+
+        p {
+            text-align: center;
+        }
+
+        @media (max-width: 1380px) {
+            main {
+                padding: 1rem 2rem 2rem 2rem;
+            }
+        }
+    </style>
+</Layout>

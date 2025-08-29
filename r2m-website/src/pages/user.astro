@@ -1,0 +1,48 @@
+---
+export const prerender = false;
+
+import {navigate} from "astro:transitions/client";
+import Layout from "../layouts/Layout.astro";
+
+if (!Astro.cookies.has('user_token'))
+    return Astro.redirect('/login');
+
+const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
+const token = Astro.cookies.get('user_token').value;
+
+let response;
+try {
+    response = await fetch(`https://${backendName}/_r2m/user`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+} catch (error) {
+    return Astro.redirect('/login');
+}
+
+const data = await response.json();
+---
+<Layout title="User page">
+    <main>
+        <h2>Account information</h2>
+        <p>Display name: {data.display_name}</p>
+        <p>Email: {data.email}</p>
+    </main>
+    <style>
+        main {
+            place-self: start center;
+            padding: 1rem 15rem 2rem 15rem;
+        }
+
+        h1, h2 {
+            text-align: center;
+        }
+
+        @media (max-width: 1380px) {
+            main {
+                padding: 1rem 2rem 2rem 2rem;
+            }
+        }
+    </style>
+</Layout>

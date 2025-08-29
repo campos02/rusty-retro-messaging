@@ -1,0 +1,43 @@
+---
+const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
+const token = Astro.cookies.get('user_token').value;
+
+const response = await fetch(`https://${backendName}/_r2m/user`, {
+    headers: {
+        Authorization: `Bearer ${token}`
+    }
+});
+
+const data = await response.json();
+---
+<div class="end-links">
+    <a href="/user">{data.display_name}</a>
+    <a href="/logout" id="logout">Logout</a>
+</div>
+<script>
+    import {navigate} from "astro:transitions/client";
+    import {actions} from "astro:actions";
+
+    const logout = document.getElementById('logout');
+    logout.addEventListener('click', async (e) => {
+        e.preventDefault();
+        await actions.logout();
+        await navigate('/');
+    })
+</script>
+<style>
+    .end-links {
+        place-self: end;
+        display: flex;
+        gap: 2rem;
+    }
+
+    @media (max-width: 530px) {
+        .end-links {
+            place-self: center;
+            display: grid;
+            gap: 1rem;
+            margin: 0;
+        }
+    }
+</style>
