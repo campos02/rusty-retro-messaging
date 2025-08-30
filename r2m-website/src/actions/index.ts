@@ -89,25 +89,19 @@ export const server = {
   }),
 
   logout: defineAction({
-    handler: async (context) => {
+    handler: async ({ token }) => {
       const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-      const token = context.cookies.get('user_token').value;
-
       await fetch(`https://${backendName}/_r2m/logout`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-
-      context.cookies.delete('user_token');
     }
   }),
 
   user: defineAction({
-    handler: async (context) => {
+    handler: async ({ token }) => {
       const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-      const token = context.cookies.get('user_token').value;
-
       const response = await fetch(`https://${backendName}/_r2m/user`, {
         headers: {
           Authorization: `Bearer ${token}`

@@ -1,25 +1,16 @@
 ---
 import { actions } from "astro:actions";
-const { data, error } = await Astro.callAction(actions.user, {});
+
+const token = Astro.cookies.get('user_token').value;
+const { data, error } = await Astro.callAction(actions.user, { token });
 
 if (error)
     throw error;
 ---
 <div class="end-links">
     <a href="/user">{data.display_name}</a>
-    <a href="/logout" id="logout">Logout</a>
+    <a href="/logout">Logout</a>
 </div>
-<script>
-    import { navigate } from "astro:transitions/client";
-    import { actions } from "astro:actions";
-
-    const logout = document.getElementById('logout');
-    logout.addEventListener('click', async (e) => {
-        e.preventDefault();
-        await actions.logout();
-        await navigate('/');
-    })
-</script>
 <style>
     a {
         text-decoration: none;

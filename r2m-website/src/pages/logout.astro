@@ -1,0 +1,13 @@
+---
+export const prerender = false;
+
+import { actions } from "astro:actions";
+
+const token = Astro.cookies.get('user_token').value;
+const { error } = await Astro.callAction(actions.logout, { token });
+
+if (!error)
+    Astro.cookies.delete('user_token');
+
+return Astro.redirect('/');
+---

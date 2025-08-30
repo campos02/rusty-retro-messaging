@@ -4,7 +4,9 @@ export const prerender = false;
 import { actions } from "astro:actions";
 import Layout from "../layouts/Layout.astro";
 
-const { data, error } = await Astro.callAction(actions.user, {});
+const token = Astro.cookies.get('user_token').value;
+const { data, error } = await Astro.callAction(actions.user, { token });
+
 if (error)
     return Astro.redirect('/login');
 ---
