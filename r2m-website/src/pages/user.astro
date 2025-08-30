@@ -5,10 +5,20 @@ import { actions } from "astro:actions";
 import Layout from "../layouts/Layout.astro";
 
 const token = Astro.cookies.get('user_token').value;
-const { data, error } = await Astro.callAction(actions.user, { token });
+const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
 
-if (error)
+let data;
+try {
+    const response = await fetch(`https://${backendName}/_r2m/user`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+
+    data = await response.json();
+} catch (error) {
     return Astro.redirect('/login');
+}
 ---
 <Layout title="User page">
     <main>

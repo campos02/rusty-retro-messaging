@@ -4,10 +4,19 @@ export const prerender = false;
 import { actions } from "astro:actions";
 
 const token = Astro.cookies.get('user_token').value;
-const { error } = await Astro.callAction(actions.logout, { token });
+const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
 
-if (!error)
+try {
+    await fetch(`https://${backendName}/_r2m/logout`, {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    });
+
     Astro.cookies.delete('user_token');
+} catch (error) {
+    return Astro.redirect('/');
+}
 
 return Astro.redirect('/');
 ---

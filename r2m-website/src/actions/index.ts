@@ -87,28 +87,4 @@ export const server = {
       return await response.json();
     },
   }),
-
-  logout: defineAction({
-    handler: async ({ token }) => {
-      const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-      await fetch(`https://${backendName}/_r2m/logout`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-    }
-  }),
-
-  user: defineAction({
-    handler: async ({ token }) => {
-      const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-      const response = await fetch(`https://${backendName}/_r2m/user`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-
-      return await response.json();
-    }
-  }),
 }
