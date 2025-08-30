@@ -107,4 +107,19 @@ export const server = {
       context.cookies.remove('user_token');
     }
   }),
+
+  user: defineAction({
+    handler: async (context) => {
+      const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
+      const token = context.cookies.get('user_token').value;
+
+      const response = await fetch(`https://${backendName}/_r2m/user`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      return response.json();
+    }
+  }),
 }

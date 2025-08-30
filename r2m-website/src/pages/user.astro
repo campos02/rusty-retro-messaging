@@ -1,27 +1,12 @@
 ---
 export const prerender = false;
 
-import {navigate} from "astro:transitions/client";
+import {actions} from "astro:actions";
 import Layout from "../layouts/Layout.astro";
 
-if (!Astro.cookies.has('user_token'))
+const { data, error } = await Astro.callAction(actions.user, {});
+if (error)
     return Astro.redirect('/login');
-
-const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
-const token = Astro.cookies.get('user_token').value;
-
-let response;
-try {
-    response = await fetch(`https://${backendName}/_r2m/user`, {
-        headers: {
-            Authorization: `Bearer ${token}`
-        }
-    });
-} catch (error) {
-    return Astro.redirect('/login');
-}
-
-const data = await response.json();
 ---
 <Layout title="User page">
     <main>
