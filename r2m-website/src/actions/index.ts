@@ -86,9 +86,11 @@ export const server = {
 
       const data = await response.json();
       context.cookies.set('user_token', String(data.token), {
+        httpOnly: true,
         secure: true,
         sameSite: 'strict',
         maxAge: 86400,
+        path: '/'
       });
     },
   }),
