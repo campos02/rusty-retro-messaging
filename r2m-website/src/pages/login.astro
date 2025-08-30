@@ -1,12 +1,33 @@
 ---
-import {actions} from "astro:actions";
-import {navigate} from "astro:transitions/client";
+export const prerender = false;
+
+import { actions } from 'astro:actions';
+import { navigate } from "astro:transitions/client";
 import Layout from "../layouts/Layout.astro";
+
+let resultText = "";
+if (Astro.request.method === "POST") {
+    const formData = await Astro.request.formData();
+    const { data, error } = await Astro.callAction(actions.login, formData);
+
+    if (!error) {
+        Astro.cookies.set('user_token', String(data.token), {
+            httpOnly: true,
+            secure: true,
+            sameSite: 'strict',
+            maxAge: 86400,
+            path: '/'
+        });
+
+        return Astro.redirect('/user');
+    } else
+        resultText = `Unable to login: ${error.message}`;
+}
 ---
 <Layout title="Login">
     <main>
         <h1>Login</h1>
-        <form>
+        <form method="POST">
             <div class="form-text">
                 <label>
                     Email:
@@ -19,24 +40,7 @@ import Layout from "../layouts/Layout.astro";
             </div>
             <input type="submit" value="Login">
         </form>
-        <p id="result"/>
-        <script>
-            import { actions } from 'astro:actions';
-            import { navigate } from 'astro:transitions/client';
-
-            const form = document.querySelector('form');
-            form?.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const formData = new FormData(form);
-                const { error } = await actions.login(formData);
-                const resultText = document.getElementById("result");
-
-                if (!error)
-                    await navigate('/user');
-                else
-                    resultText.innerText = `Unable to login: ${error.message}`;
-            });
-        </script>
+        <p>{resultText}</p>
     </main>
     <style>
         main {

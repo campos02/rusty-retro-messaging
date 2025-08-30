@@ -52,7 +52,7 @@ export const server = {
       email: z.string().email(),
       password: z.string()
     }),
-    handler: async ({ email, password }, context) => {
+    handler: async ({ email, password }) => {
       const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
       let url;
       if (import.meta.env.DEV)
@@ -84,14 +84,7 @@ export const server = {
           });
       }
 
-      const data = await response.json();
-      context.cookies.set('user_token', String(data.token), {
-        httpOnly: true,
-        secure: true,
-        sameSite: 'strict',
-        maxAge: 86400,
-        path: '/'
-      });
+      return await response.json();
     },
   }),
 
@@ -106,7 +99,7 @@ export const server = {
         }
       });
 
-      context.cookies.remove('user_token');
+      context.cookies.delete('user_token');
     }
   }),
 
@@ -121,7 +114,7 @@ export const server = {
         }
       });
 
-      return response.json();
+      return await response.json();
     }
   }),
 }

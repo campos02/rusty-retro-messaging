@@ -1,5 +1,5 @@
 ---
-import {actions} from "astro:actions";
+import { actions } from "astro:actions";
 const { data, error } = await Astro.callAction(actions.user, {});
 
 if (error)
@@ -10,8 +10,8 @@ if (error)
     <a href="/logout" id="logout">Logout</a>
 </div>
 <script>
-    import {navigate} from "astro:transitions/client";
-    import {actions} from "astro:actions";
+    import { navigate } from "astro:transitions/client";
+    import { actions } from "astro:actions";
 
     const logout = document.getElementById('logout');
     logout.addEventListener('click', async (e) => {

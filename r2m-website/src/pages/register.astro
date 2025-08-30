@@ -1,10 +1,25 @@
 ---
+export const prerender = false;
+
+import { actions } from 'astro:actions';
+import { navigate } from "astro:transitions/client";
 import Layout from "../layouts/Layout.astro";
+
+let resultText = "";
+if (Astro.request.method === "POST") {
+    const formData = await Astro.request.formData();
+    const { error } = await Astro.callAction(actions.registration, formData);
+
+    if (!error)
+        return Astro.redirect('/success');
+    else
+        resultText = `Unable to register: ${error.message}`;
+}
 ---
 <Layout title="Register">
 	<main>
 		<h1>Registration</h1>
-		<form>
+		<form method="POST">
             <div class="form-text">
                 <label>
                     Email:
@@ -25,24 +40,7 @@ import Layout from "../layouts/Layout.astro";
             </div>
             <input type="submit" value="Register">
         </form>
-        <p id="result"/>
-        <script>
-            import { actions } from 'astro:actions';
-            import { navigate } from 'astro:transitions/client';
-
-            const form = document.querySelector('form');
-            form?.addEventListener('submit', async (event) => {
-                event.preventDefault();
-                const formData = new FormData(form);
-                const { error } = await actions.registration(formData);
-                const resultText = document.getElementById("result");
-
-                if (!error)
-                    await navigate('/success');
-                else
-                    resultText.innerText = `Unable to register: ${error.message}`;
-            });
-        </script>
+        <p>{resultText}</p>
 	</main>
 	<style>
 		main {
