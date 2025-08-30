@@ -1,0 +1,34 @@
+{
+  "db_name": "MySQL",
+  "query": "SELECT email, display_name FROM users INNER JOIN tokens ON tokens.user_id = users.id\n        WHERE token = ? LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "email",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "display_name",
+        "type_info": {
+          "type": "Blob",
+          "flags": "NOT_NULL | BLOB | NO_DEFAULT_VALUE",
+          "max_size": 262140
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "b799da125a2da36a7415e6b92cd32cb4d3cc31d7729420618e0459ede3439a76"
+}
