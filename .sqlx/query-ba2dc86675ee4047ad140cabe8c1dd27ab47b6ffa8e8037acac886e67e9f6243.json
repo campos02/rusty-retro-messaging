@@ -1,0 +1,12 @@
+{
+  "db_name": "MySQL",
+  "query": "DELETE FROM groups WHERE user_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ba2dc86675ee4047ad140cabe8c1dd27ab47b6ffa8e8037acac886e67e9f6243"
+}
