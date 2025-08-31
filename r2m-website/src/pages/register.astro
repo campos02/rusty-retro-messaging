@@ -1,9 +1,9 @@
 ---
 export const prerender = false;
 
-import { actions } from 'astro:actions';
-import { navigate } from "astro:transitions/client";
 import Layout from "../layouts/Layout.astro";
+import {actions} from 'astro:actions';
+import {navigate} from "astro:transitions/client";
 
 let resultText = "";
 if (Astro.request.method === "POST") {
@@ -11,14 +11,14 @@ if (Astro.request.method === "POST") {
     const { error } = await Astro.callAction(actions.registration, formData);
 
     if (!error)
-        return Astro.redirect('/success');
+        return Astro.redirect('/registration-success');
     else
         resultText = `Unable to register: ${error.message}`;
 }
 ---
 <Layout title="Register">
 	<main>
-		<h1>Registration</h1>
+		<h2>Registration</h2>
 		<form method="POST">
             <div class="form-text">
                 <label>
@@ -50,7 +50,7 @@ if (Astro.request.method === "POST") {
             padding: 1rem 15rem 2rem 15rem;
         }
 
-		h1 {
+		h2 {
 			text-align: center;
 		}
 

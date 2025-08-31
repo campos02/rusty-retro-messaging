@@ -16,9 +16,7 @@ const websiteUrl = import.meta.env.WEBSITE_URL;
         <title>{title}</title>
 	</head>
 	<body>
-        <Navbar server:defer>
-            <ZeroUsersNavbar slot="fallback"/>
-        </Navbar>
+        <ZeroUsersNavbar/>
         <slot />
 	</body>
     <style>

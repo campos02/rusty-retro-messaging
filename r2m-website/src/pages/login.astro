@@ -1,9 +1,9 @@
 ---
 export const prerender = false;
 
-import { actions } from 'astro:actions';
-import { navigate } from "astro:transitions/client";
 import Layout from "../layouts/Layout.astro";
+import {actions} from 'astro:actions';
+import {navigate} from "astro:transitions/client";
 
 let resultText = "";
 if (Astro.request.method === "POST") {
@@ -26,7 +26,7 @@ if (Astro.request.method === "POST") {
 ---
 <Layout title="Login">
     <main>
-        <h1>Login</h1>
+        <h2>Login</h2>
         <form method="POST">
             <div class="form-text">
                 <label>
@@ -50,7 +50,7 @@ if (Astro.request.method === "POST") {
             padding: 1rem 15rem 2rem 15rem;
         }
 
-        h1 {
+        h2 {
             text-align: center;
         }
 
@@ -77,13 +77,13 @@ if (Astro.request.method === "POST") {
             gap: 0.3rem;
         }
 
+        p {
+            text-align: center;
+        }
+
         .form-text {
             display: grid;
             gap: 1rem;
-        }
-
-        p {
-            text-align: center;
         }
 
         @media (max-width: 1380px) {

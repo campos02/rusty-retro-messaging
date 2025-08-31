@@ -1,5 +1,6 @@
 use crate::http::middleware::authentication;
 use crate::message::Message;
+use axum::routing::delete;
 use axum::{
     Router,
     http::HeaderValue,
@@ -17,6 +18,9 @@ use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
 use tower_service::Service;
 
+mod change_email;
+mod change_password;
+mod delete_account;
 mod login;
 mod logout;
 mod middleware;
@@ -40,17 +44,24 @@ pub async fn listen(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>)
     let authentication =
         axum::middleware::from_fn_with_state(pool.clone(), authentication::authentication);
 
-    let app = Router::new()
-        .route("/_r2m/stats", get(stats::stats))
+    let user_routes = Router::new()
+        .route("/", get(user::user))
+        .route("/", delete(delete_account::delete_account))
+        .route("/change-email", post(change_email::change_email))
+        .route("/change-password", post(change_password::change_password))
+        .route("/logout", post(logout::logout))
+        .layer(authentication);
+
+    let r2m_routes = Router::new()
+        .route("/stats", get(stats::stats))
         .with_state(broadcast_tx)
-        .route("/_r2m/register", post(register::register))
-        .route("/_r2m/login", post(login::login))
-        .route(
-            "/_r2m/logout",
-            get(logout::logout).layer(authentication.clone()),
-        )
-        .route("/_r2m/user", get(user::user).layer(authentication))
-        .layer(cors)
+        .route("/register", post(register::register))
+        .route("/login", post(login::login))
+        .nest("/user", user_routes)
+        .layer(cors);
+
+    let app = Router::new()
+        .nest("/_r2m", r2m_routes)
         .route("/rdr/pprdr.asp", get(nexus::nexus))
         .route("/login.srf", get(passport_one_four::passport_one_four))
         .route(
@@ -69,7 +80,7 @@ pub async fn listen(pool: Pool<MySql>, broadcast_tx: broadcast::Sender<Message>)
 
     loop {
         let (socket, _remote_addr) = match listener.accept().await {
-            Ok(l) => l,
+            Ok(listener) => listener,
             Err(error) => {
                 error!("Could not get socket from accepted HTTP connection: {error}");
                 continue;

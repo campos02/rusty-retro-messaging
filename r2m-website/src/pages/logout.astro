@@ -1,7 +1,10 @@
 ---
 export const prerender = false;
 
-import { actions } from "astro:actions";
+import {actions} from "astro:actions";
+
+if (!Astro.cookies.has('user_token'))
+    return Astro.redirect('/login');
 
 const token = Astro.cookies.get('user_token').value;
 const backendName = import.meta.env.PUBLIC_BACKEND_NAME;

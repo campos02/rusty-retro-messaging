@@ -50,7 +50,7 @@ async fn main() {
         tokio::select! {
             client = notification_server_listener.accept() => {
                 let (mut socket, _) = match client {
-                    Ok(c) => c,
+                    Ok(client) => client,
                     Err(error) => {
                         error!("Could not get socket from accepted Notification Server connection: {error}");
                         continue;
@@ -73,7 +73,7 @@ async fn main() {
 
             client = switchboard_listener.accept() => {
                 let (mut socket, _) = match client {
-                    Ok(c) => c,
+                    Ok(client) => client,
                     Err(error) => {
                         error!("Could not get socket from accepted Switchboard connection: {error}");
                         continue;
@@ -94,7 +94,7 @@ async fn main() {
 
             message = rx.recv() => {
                 let message = match message {
-                    Ok(m) => m,
+                    Ok(message) => message,
                     Err(error) => {
                         error!("Could not receive message from thread: {error}");
                         continue;

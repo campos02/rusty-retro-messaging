@@ -8,7 +8,6 @@ use axum::response::IntoResponse;
 use axum_serde::macros::Deserialize;
 use base64::{Engine as _, engine::general_purpose::URL_SAFE};
 use chrono::{Duration, Utc};
-use email_address::EmailAddress;
 use serde_json::json;
 use sqlx::{MySql, Pool};
 
@@ -22,13 +21,6 @@ pub async fn login(
     State(pool): State<Pool<MySql>>,
     Json(payload): Json<Login>,
 ) -> impl IntoResponse {
-    if !EmailAddress::is_valid(payload.email.as_str()) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(String::from("Invalid email address")),
-        ));
-    }
-
     let Ok(user) = sqlx::query!(
         "SELECT id, password FROM users WHERE email = ? LIMIT 1",
         payload.email

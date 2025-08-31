@@ -13,8 +13,8 @@ pub async fn authentication(
     next: Next,
 ) -> impl IntoResponse {
     let headers = request.headers();
-    if let Some(token) = headers.get(AUTHORIZATION) {
-        let token = token
+    if let Some(authorization) = headers.get(AUTHORIZATION) {
+        let token = authorization
             .to_str()
             .or(Err((
                 StatusCode::UNAUTHORIZED,

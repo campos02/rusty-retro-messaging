@@ -1,8 +1,11 @@
 ---
 export const prerender = false;
 
-import { actions } from "astro:actions";
 import Layout from "../layouts/Layout.astro";
+import {actions} from "astro:actions";
+
+if (!Astro.cookies.has('user_token'))
+    return Astro.redirect('/login');
 
 const token = Astro.cookies.get('user_token').value;
 const backendName = import.meta.env.PUBLIC_BACKEND_NAME;
@@ -23,8 +26,16 @@ try {
 <Layout title="User page">
     <main>
         <h2>Account information</h2>
-        <p>Display name: {data.display_name}</p>
-        <p>Email: {data.email}</p>
+        <p>Display name:</p>
+        <p>Email:</p>
+        <div class="buttons">
+            <a href="/change-email"><button>Change my email</button></a>
+            <a href="/change-password"><button>Change my password</button></a>
+        </div>
+        <h2 class="danger">Danger zone</h2>
+        <div class="buttons">
+            <a href="/delete-account"><button class="danger">Delete my account</button></a>
+        </div>
     </main>
     <style>
         main {
@@ -32,8 +43,30 @@ try {
             padding: 1rem 15rem 2rem 15rem;
         }
 
-        h1, h2 {
+        h2 {
             text-align: center;
+        }
+
+        a {
+            display: block;
+        }
+
+        button {
+            padding: 0.3em;
+            font-size: 0.85em;
+            width: 70%;
+        }
+
+        .buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            text-align: center;
+        }
+
+        .danger {
+            color: #ff2f2f;
+            font-weight: bold;
         }
 
         @media (max-width: 1380px) {
