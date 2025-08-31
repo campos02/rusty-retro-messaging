@@ -25,6 +25,13 @@ pub async fn register(
     State(pool): State<Pool<MySql>>,
     Json(payload): Json<CreateUser>,
 ) -> impl IntoResponse {
+    if payload.password.len() < 8 {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(String::from("Password must be at least 8 characters long")),
+        );
+    }
+
     if payload.password != payload.password_confirmation {
         return (
             StatusCode::BAD_REQUEST,

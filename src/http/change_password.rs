@@ -20,6 +20,15 @@ pub async fn change_password(
     State(pool): State<Pool<MySql>>,
     Json(payload): Json<ChangePassword>,
 ) -> impl IntoResponse {
+    if payload.new_password.len() < 8 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(String::from(
+                "New password must be at least 8 characters long",
+            )),
+        ));
+    }
+
     if payload.current_password == payload.new_password {
         return Err((
             StatusCode::BAD_REQUEST,
