@@ -31,8 +31,12 @@ pub async fn user(headers: HeaderMap, State(pool): State<Pool<MySql>>) -> impl I
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     };
 
+    let display_name = urlencoding::decode(&user.display_name)
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .to_string();
+
     Ok(Json(UserResponse {
         email: user.email,
-        display_name: user.display_name,
+        display_name,
     }))
 }
