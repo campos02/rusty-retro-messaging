@@ -3,7 +3,7 @@ R²M requires [Rust](https://www.rust-lang.org/tools/install), [MariaDB](https:/
 and a reverse proxy.
 
 ## Ports
-Besides the standard HTTPS port, R²M also requires ports 1863 and 1864 to be open and/or forwarded for the MSN clients to work. IPv4 is also required.
+Besides the standard HTTPS port, R²M also requires ports 1863 and 1864 to be open for the MSN clients to work. IPv4 is also required.
 
 ## Configuration
 After cloning, first run `cp .env.example .env` and edit the .env file to your liking.

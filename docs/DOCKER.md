@@ -3,7 +3,7 @@ To facilitate a Docker setup, this repository comes with a compose file. A rever
 as MSN uses HTTPS in its authentication process.
 
 ## Ports
-Besides the standard HTTPS port, R²M also requires ports 1863 and 1864 to be open and/or forwarded for the MSN clients to work. IPv4 is also required.
+Besides the standard HTTPS port, R²M also requires ports 1863 and 1864 to be open for the MSN clients to work. IPv4 is also required.
 
 ## Configuration
 After cloning, first run `cp .env.example .env` and edit the .env file to your liking.
